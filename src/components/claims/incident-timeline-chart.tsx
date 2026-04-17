@@ -60,8 +60,8 @@ export function IncidentTimelineChart({ speedTimeline, speedLimitMph, speedAtImp
             label={{ value: "mph", angle: -90, position: "insideLeft", fontSize: 11 }}
           />
           <Tooltip
-            formatter={(value: number) => [`${value.toFixed(1)} mph`, "Speed"]}
-            labelFormatter={(label: number) => `T${label}min`}
+            formatter={(value) => [`${Number(value).toFixed(1)} mph`, "Speed"]}
+            labelFormatter={(label) => `T${label}min`}
           />
 
           {/* Speed limit reference */}

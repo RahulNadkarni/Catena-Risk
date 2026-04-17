@@ -10,8 +10,10 @@ import {
 } from "@/lib/db/claims";
 import { generateDefensePacket } from "@/lib/claims/generate-scenario";
 import { buildDefenseNarrative } from "@/lib/claims/narrative";
-import type { ClaimStatus, ClaimDisposition, DefensePacket, ScenarioId, ClaimRow } from "@/lib/claims/types";
+import type { ClaimStatus, ClaimDisposition, DefensePacket, ScenarioId, ClaimRow, ClaimListItem } from "@/lib/claims/types";
 import { listHeroFleetIds } from "@/lib/underwriting/hero-fleets";
+
+export type { ClaimListItem } from "@/lib/claims/types";
 
 export interface ClaimWithPacket {
   id: string;
@@ -25,19 +27,6 @@ export interface ClaimWithPacket {
   vehicleUnit: string;
   disposition: ClaimDisposition;
   packet: DefensePacket;
-}
-
-export interface ClaimListItem {
-  id: string;
-  claimNumber: string;
-  fleetId: string;
-  status: ClaimStatus;
-  createdAt: string;
-  incidentAt: string;
-  incidentLocation: string;
-  driverName: string;
-  vehicleUnit: string;
-  disposition: ClaimDisposition;
 }
 
 function rowToListItem(row: ClaimRow): ClaimListItem {

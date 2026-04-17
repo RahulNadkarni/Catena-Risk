@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import { ShareCounselButton } from "@/components/claims/share-counsel-button";
 import { format } from "date-fns";
 import type { DefensePacket, ClaimStatus } from "@/lib/claims/types";
 import { IncidentTimelineChart } from "@/components/claims/incident-timeline-chart";
@@ -72,8 +73,7 @@ function fmtDateShort(iso: string) {
   }
 }
 
-export function DefensePacketView({ claimId: _id, claimNumber, status, packet }: Props) {
-  void _id;
+export function DefensePacketView({ claimId, claimNumber, status, packet }: Props) {
   const {
     incidentAt,
     incidentLocation,
@@ -337,20 +337,15 @@ export function DefensePacketView({ claimId: _id, claimNumber, status, packet }:
 
         {/* Actions footer */}
         <section className="flex flex-wrap gap-3 pb-8">
-          <button
-            type="button"
-            disabled
-            className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-muted-foreground opacity-60 cursor-not-allowed"
+          <a
+            href={`/api/pdf/claims/${claimId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition"
           >
-            Export PDF (Phase 5)
-          </button>
-          <button
-            type="button"
-            disabled
-            className="rounded-lg border border-border bg-background px-4 py-2 text-sm text-muted-foreground opacity-60 cursor-not-allowed"
-          >
-            Share with counsel (Phase 5)
-          </button>
+            Export as PDF
+          </a>
+          <ShareCounselButton claimId={claimId} />
         </section>
       </div>
 

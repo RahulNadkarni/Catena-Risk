@@ -8,7 +8,12 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Keystone Risk Workbench",
-  description: "Commercial auto underwriting workbench — Catena telematics intelligence",
+  description: "Commercial auto underwriting workbench powered by Catena telematics — score fleets, manage claims, and export underwriter-ready PDFs.",
+  openGraph: {
+    title: "Keystone Risk Workbench",
+    description: "Commercial auto risk intelligence built on the Catena Clearing API.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

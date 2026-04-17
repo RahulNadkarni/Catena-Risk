@@ -133,4 +133,17 @@ export interface ClaimRow {
   defense_packet_json: string; // serialized DefensePacket
 }
 
+export interface ClaimListItem {
+  id: string;
+  claimNumber: string;
+  fleetId: string;
+  status: ClaimStatus;
+  createdAt: string;
+  incidentAt: string;
+  incidentLocation: string;
+  driverName: string;
+  vehicleUnit: string;
+  disposition: ClaimDisposition;
+}
+
 export type ScenarioId = "KS-2026-0142" | "KS-2026-0157";

@@ -32,8 +32,17 @@ export default function HomePage() {
               New submission
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
             </Link>
+            <Link href="/portfolio" className={buttonVariants({ variant: "outline", size: "lg" })}>
+              Portfolio
+            </Link>
             <Link href="/claims" className={buttonVariants({ variant: "outline", size: "lg" })}>
-              Claims (Phase 4)
+              Claims
+            </Link>
+            <Link href="/roi" className={buttonVariants({ variant: "outline", size: "lg" })}>
+              ROI calculator
+            </Link>
+            <Link href="/tech" className={buttonVariants({ variant: "outline", size: "lg" })}>
+              Architecture
             </Link>
           </div>
         </section>

@@ -1,4 +1,4 @@
-import { addMinutes, addHours, subHours, subMinutes, formatISO } from "date-fns";
+import { addMinutes, formatISO } from "date-fns";
 import type {
   DefensePacket,
   SpeedSample,
@@ -37,7 +37,7 @@ function buildSpeedTimeline(opts: {
   headingDeg: number;
   speedAtImpact: number;
 }): SpeedSample[] {
-  const { incidentAt, baseSpeedMph, peakOverrides, incidentLat, incidentLng, headingDeg, speedAtImpact } = opts;
+  const { baseSpeedMph, peakOverrides, incidentLat, incidentLng, headingDeg, speedAtImpact } = opts;
   const samples: SpeedSample[] = [];
   const totalMinutes = 72;
 

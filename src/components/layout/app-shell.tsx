@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { DemoModeWidget } from "@/components/layout/demo-mode-widget";
 
 const nav = [
   { href: "/", label: "Dashboard" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/underwriting/new", label: "New submission" },
   { href: "/claims", label: "Claims" },
+  { href: "/roi", label: "ROI" },
+  { href: "/tech", label: "Tech" },
 ];
 
 export interface AppShellProps {
@@ -36,7 +40,10 @@ export function AppShell({ children, rightRail, className }: AppShellProps) {
               ))}
             </nav>
           </div>
-          <div className="text-sm text-muted-foreground">Catena telematics</div>
+          <div className="flex items-center gap-3">
+            <DemoModeWidget />
+            <span className="hidden text-sm text-muted-foreground sm:block">Catena telematics</span>
+          </div>
         </div>
       </header>
 
@@ -48,10 +55,9 @@ export function AppShell({ children, rightRail, className }: AppShellProps) {
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>
-            Underwriting views are powered by Catena API data. Region polygons are not available in this tenant; maps use
-            vehicle locations only.
+            Powered by Catena Clearing API. Synthetic demo data is clearly marked throughout. Not legal advice.
           </p>
-          <p className="tabular-nums">Phase 3 · Workbench</p>
+          <p className="tabular-nums">Phase 4 · Claims Intelligence</p>
         </div>
       </footer>
     </div>

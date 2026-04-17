@@ -208,12 +208,17 @@ export function RiskReportView({
           <DriversTable rows={driverRows} submissionId={submissionId} />
         </section>
 
-        <section className="flex flex-wrap gap-3">
-          <Button type="button" variant="secondary" disabled>
-            Export PDF (soon)
-          </Button>
+        <section className="flex flex-wrap gap-3 pb-8">
+          <a
+            href={`/api/pdf/underwriting/${submissionId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition"
+          >
+            Export as PDF
+          </a>
           <Button type="button" variant="destructive" disabled>
-            Decline in AMS (soon)
+            Decline in AMS (coming soon)
           </Button>
         </section>
       </div>
