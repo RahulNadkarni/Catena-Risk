@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { subDays } from "date-fns";
-import { createCatenaClientFromEnv, type CatenaClient } from "@/lib/catena/client";
+import { subDays } from "date-fns/subDays";
+import type { CatenaClient } from "../catena/client";
 import type {
   ConnectionRead,
   DriverSafetyEventRead,
@@ -16,7 +16,7 @@ import type {
   UserRead,
   VehicleLocationRead,
   VehicleRead,
-} from "@/lib/catena/types";
+} from "../catena/types";
 
 type CursorPage<T> = {
   items: T[];
@@ -282,7 +282,9 @@ export async function buildFleetDossier(
     return dossier;
   }
 
-  const client = options?.client ?? createCatenaClientFromEnv();
+  /** Dynamic import keeps `axios`/HTTP stack off the load path for `source: 'fixtures'` (e.g. CLI on Node 24). */
+  const client =
+    options?.client ?? (await import("../catena/client")).createCatenaClientFromEnv();
   const meta = emptyMeta("api", windowDays);
   const range = { from_datetime: windowStart.toISOString(), to_datetime: windowEnd.toISOString() };
   const fp: { fleet_ids: string[]; size: number } = { fleet_ids: [fleetId], size: pageSize };

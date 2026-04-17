@@ -3,7 +3,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from "axios";
-import { subDays } from "date-fns";
+import { subDays } from "date-fns/subDays";
 import { z } from "zod";
 import { MethodNotInPublicSpecError } from "./errors";
 import { CursorPageResponseSchema } from "./schemas/pagination";

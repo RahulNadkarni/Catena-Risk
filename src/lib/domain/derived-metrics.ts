@@ -1,10 +1,10 @@
-import { differenceInCalendarDays } from "date-fns";
-import type { FleetDossier } from "@/lib/domain/fleet-dossier";
+import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
+import type { FleetDossier } from "./fleet-dossier";
 import {
   CANONICAL_SAFETY_CATEGORY,
   mapRawSafetyEventToCanonical,
-} from "@/lib/domain/safety-event-taxonomy";
-import type { VehicleLocationRead } from "@/lib/catena/types";
+} from "./safety-event-taxonomy";
+import type { VehicleLocationRead } from "../catena/types";
 
 /**
  * Exposure aggregates used for insurance-style denominators.

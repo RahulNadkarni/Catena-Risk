@@ -8,7 +8,7 @@ import "./load-env";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { subDays } from "date-fns";
+import { subDays } from "date-fns/subDays";
 import { createCatenaClientFromEnv, describeResponseShape } from "../src/lib/catena/client";
 import { ENDPOINT_CATALOG, SPEC_SOURCE_SHA, type CatalogRow } from "../src/lib/catena/endpoints";
 import { SANDBOX_WEBHOOKS_DO_NOT_FIRE } from "../src/lib/catena/sandbox-notes";
