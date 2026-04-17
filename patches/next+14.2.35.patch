@@ -1,0 +1,32 @@
+diff --git a/node_modules/next/dist/bin/next b/node_modules/next/dist/bin/next
+index 1111111..2222222 100644
+--- a/node_modules/next/dist/bin/next
++++ b/node_modules/next/dist/bin/next
+@@ -6,7 +6,8 @@
+ require("../server/require-hook");
+ const _commander = require("next/dist/compiled/commander");
+ const _log = require("../build/output/log");
+-const _semver = /*#__PURE__*/ _interop_require_default(require("next/dist/compiled/semver"));
++const _semverMod = require("next/dist/compiled/semver");
++const _semver = /*#__PURE__*/ _interop_require_default(_semverMod);
+ const _picocolors = require("../lib/picocolors");
+ const _formatclihelpoutput = require("../lib/format-cli-help-output");
+ const _constants = require("../lib/constants");
+@@ -16,7 +17,16 @@ function _interop_require_default(obj) {
+         default: obj
+     };
+ }
+-if (_semver.default.lt(process.versions.node, "18.17.0")) {
++function semverLt(version, cmp) {
++    const d = _semver.default;
++    if (d && typeof d.lt === "function") return d.lt(version, cmp);
++    if (_semverMod && typeof _semverMod.lt === "function") return _semverMod.lt(version, cmp);
++    console.error(
++        "Next.js could not load semver. Reinstall dependencies (rm -rf node_modules && npm install). If you use conda, run conda deactivate so nvm Node/npm are first on PATH.",
++    );
++    process.exit(1);
++}
++if (semverLt(process.versions.node, "18.17.0")) {
+     console.error(`You are using Node.js ${process.versions.node}. For Next.js, Node.js version >= v${"18.17.0"} is required.`);
+     process.exit(1);
+ }

@@ -31,6 +31,9 @@ yarn-error.log*
 # API exploration raw dumps (reports may be committed intentionally)
 /exploration/*.json
 
+# local SQLite (underwriting submissions)
+/data/
+
 # vercel
 .vercel
 
