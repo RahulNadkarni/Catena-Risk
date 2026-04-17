@@ -1,0 +1,240 @@
+{
+  "sourcePath": "/v2/telematics/ref-hos-violation-codes",
+  "data": {
+    "items": [
+      {
+        "name": "Break taken too late",
+        "description": "Break taken after exceeding the maximum hours before break.",
+        "violation_code": "BR_LATE",
+        "category": "Rest"
+      },
+      {
+        "name": "Required break not taken",
+        "description": "Required break (e.g., 30-minute) not taken within the allowed interval.",
+        "violation_code": "BR_MISSING",
+        "category": "Rest"
+      },
+      {
+        "name": "Break too short",
+        "description": "Break duration shorter than the rule requires.",
+        "violation_code": "BR_SHORT",
+        "category": "Rest"
+      },
+      {
+        "name": "Cycle hours exceeded",
+        "description": "Total on-duty time exceeded the cycle limit (e.g., 60/70 US, C1/C2 CA).",
+        "violation_code": "CY_LIMIT_OVER",
+        "category": "Cycle"
+      },
+      {
+        "name": "Restart taken too soon",
+        "description": "Restart attempted before the minimum interval allowed between restarts.",
+        "violation_code": "CY_RESTART_EARLY",
+        "category": "Cycle"
+      },
+      {
+        "name": "Invalid/insufficient restart",
+        "description": "Restart taken with fewer hours than required for the cycle.",
+        "violation_code": "CY_RESTART_SHORT",
+        "category": "Cycle"
+      },
+      {
+        "name": "Driving after on-duty window",
+        "description": "Driver operated a CMV after the allowable on-duty/shift window ended.",
+        "violation_code": "DH_AFTER_WINDOW",
+        "category": "DrivingHours"
+      },
+      {
+        "name": "Driving time exceeded daily limit",
+        "description": "Driver exceeded the maximum daily driving hours allowed by the active cycle/ruleset.",
+        "violation_code": "DH_DAILY_OVER",
+        "category": "DrivingHours"
+      },
+      {
+        "name": "Driving while in off-duty status",
+        "description": "Driving recorded while status set to Off-duty (excludes PC/YM when valid).",
+        "violation_code": "DH_OFFDUTY_DRIVE",
+        "category": "DrivingHours"
+      },
+      {
+        "name": "Passenger daily driving over limit",
+        "description": "Passenger daily driving limit exceeded",
+        "violation_code": "DH_PASSENGER_DAILY_OVER",
+        "category": "DrivingHours"
+      },
+      {
+        "name": "ELD data diagnostic unresolved",
+        "description": "Active data diagnostic not corrected in the required manner/timeframe.",
+        "violation_code": "EL_DIAG_ACTIVE",
+        "category": "ELD"
+      },
+      {
+        "name": "ELD malfunction unresolved",
+        "description": "ELD malfunction not addressed within required timeframes/procedures.",
+        "violation_code": "EL_MALFUNC",
+        "category": "ELD"
+      },
+      {
+        "name": "ELD data transfer failure",
+        "description": "Required ELD data transfer to enforcement failed at inspection.",
+        "violation_code": "EL_XFER_FAIL",
+        "category": "ELD"
+      },
+      {
+        "name": "Invalid adverse-conditions claim",
+        "description": "Adverse driving conditions claimed without qualifying conditions.",
+        "violation_code": "EX_ADV_INVALID",
+        "category": "Exemption"
+      },
+      {
+        "name": "Invalid emergency exemption",
+        "description": "Emergency exemption applied without qualifying declaration/period",
+        "violation_code": "EX_EMERGENCY_INVALID",
+        "category": "Exemption"
+      },
+      {
+        "name": "Personal Conveyance misuse",
+        "description": "PC used when conditions were not met (e.g., advancing the load or trip).",
+        "violation_code": "EX_PC_MISUSE",
+        "category": "Exemption"
+      },
+      {
+        "name": "Yard Move misuse",
+        "description": "YM used outside yard or for travel that advances the trip.",
+        "violation_code": "EX_YM_MISUSE",
+        "category": "Exemption"
+      },
+      {
+        "name": "Insufficient daily off-duty",
+        "description": "Off-duty time taken in the day was less than required.",
+        "violation_code": "OD_DAILY_SHORT",
+        "category": "OffDuty"
+      },
+      {
+        "name": "Day 1 deferral short",
+        "description": "Day 1 off-duty taken < (10h − deferred hours)",
+        "violation_code": "OD_DEFERRAL_DAY1_SHORT",
+        "category": "OffDuty"
+      },
+      {
+        "name": "Day 2 deferral short",
+        "description": "Day 2 off-duty didn't include (10h + deferred hours)",
+        "violation_code": "OD_DEFERRAL_DAY2_SHORT",
+        "category": "OffDuty"
+      },
+      {
+        "name": "Deferral rule misapplied",
+        "description": "Deferral used when conditions weren't met",
+        "violation_code": "OD_DEFERRAL_RULE_MISAPPLIED",
+        "category": "OffDuty"
+      },
+      {
+        "name": "Insufficient weekly reset",
+        "description": "Weekly reset/off-duty did not meet required hours for the cycle.",
+        "violation_code": "OD_RESET_SHORT",
+        "category": "OffDuty"
+      },
+      {
+        "name": "Missing RODS day",
+        "description": "Required daily record is missing.",
+        "violation_code": "RK_DAY_MISSING",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "False or inaccurate log",
+        "description": "Records contain false, conflicting, or manipulated entries.",
+        "violation_code": "RK_FALSE_LOG",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "Form and manner deficiencies",
+        "description": "Mandatory fields (e.g., shipping, trailer, location) missing/invalid.",
+        "violation_code": "RK_FORM_MANNER",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "Missing location",
+        "description": "Required location not recorded for an event",
+        "violation_code": "RK_MISSING_LOCATION",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "RODS not certified",
+        "description": "Driver did not certify daily records of duty status.",
+        "violation_code": "RK_NOT_CERT",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "Odometer gap",
+        "description": "Unexplained odometer discontinuity across consecutive events",
+        "violation_code": "RK_ODOMETER_GAP",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "Unassigned driving unresolved",
+        "description": "Unassigned driving segments not properly assigned or annotated.",
+        "violation_code": "RK_UNASSIGNED_OPEN",
+        "category": "Recordkeeping"
+      },
+      {
+        "name": "Short-haul duty window exceeded",
+        "description": "Duty hours exceeded the short-haul limit (e.g., 12/14/16-hour).",
+        "violation_code": "SH_DUTY_OVER",
+        "category": "ShortHaul"
+      },
+      {
+        "name": "Logging required under short-haul",
+        "description": "Short-haul conditions not met; RODS/logging required but missing.",
+        "violation_code": "SH_LOGGING_REQD",
+        "category": "ShortHaul"
+      },
+      {
+        "name": "Short-haul radius exceeded",
+        "description": "Operations exceeded allowed air-mile/km radius for short-haul.",
+        "violation_code": "SH_RADIUS_OVER",
+        "category": "ShortHaul"
+      },
+      {
+        "name": "Return location violation",
+        "description": "Didn't return to the same reporting location as required",
+        "violation_code": "SH_RETURN_LOCATION_VIOLATION",
+        "category": "ShortHaul"
+      },
+      {
+        "name": "Invalid sleeper split combination",
+        "description": "Sleeper-berth segments do not form a valid split per the rule.",
+        "violation_code": "SL_SPLIT_INVALID",
+        "category": "Sleeper"
+      },
+      {
+        "name": "Unpaired sleeper split segment",
+        "description": "One sleeper segment recorded without the required complementary segment.",
+        "violation_code": "SL_SPLIT_UNPAIRED",
+        "category": "Sleeper"
+      },
+      {
+        "name": "Consecutive duty window exceeded",
+        "description": "Exceeded maximum consecutive duty windows without required reset.",
+        "violation_code": "WD_CONSEC_OVER",
+        "category": "Workday"
+      },
+      {
+        "name": "Invalid split reset window",
+        "description": "Claimed split didn't properly pause/reset the on-duty window under allowed split rules (US/Canada nuance)",
+        "violation_code": "WD_SPLIT_RESETS_WINDOW_INVALID",
+        "category": "Workday"
+      },
+      {
+        "name": "On-duty window exceeded",
+        "description": "Total on-duty time exceeded the allowed daily/shift limit.",
+        "violation_code": "WD_WINDOW_OVER",
+        "category": "Workday"
+      }
+    ],
+    "total": 38,
+    "current_page": "Pg%3D%3D",
+    "current_page_backwards": "PA%3D%3D",
+    "previous_page": null,
+    "next_page": null
+  }
+}

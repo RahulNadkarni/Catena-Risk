@@ -1,0 +1,462 @@
+{
+  "sourcePath": "/v2/telematics/ref-timezones",
+  "data": {
+    "items": [
+      {
+        "timezone_code": "AMER_ADAK",
+        "timezone": "America/Adak",
+        "dst_utc_offset_minutes": -540,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -600,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_ANCHORAGE",
+        "timezone": "America/Anchorage",
+        "dst_utc_offset_minutes": -480,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -540,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_ATIKOKAN",
+        "timezone": "America/Atikokan",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_BLANC_SABLON",
+        "timezone": "America/Blanc-Sablon",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -240,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_BOISE",
+        "timezone": "America/Boise",
+        "dst_utc_offset_minutes": -360,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_CAMBRIDGE_BAY",
+        "timezone": "America/Cambridge_Bay",
+        "dst_utc_offset_minutes": -360,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_CHICAGO",
+        "timezone": "America/Chicago",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_CRESTON",
+        "timezone": "America/Creston",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_DAWSON",
+        "timezone": "America/Dawson",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_DAWSON_CREEK",
+        "timezone": "America/Dawson_Creek",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_DENVER",
+        "timezone": "America/Denver",
+        "dst_utc_offset_minutes": -360,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_DETROIT",
+        "timezone": "America/Detroit",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_EDMONTON",
+        "timezone": "America/Edmonton",
+        "dst_utc_offset_minutes": -360,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_FORT_NELSON",
+        "timezone": "America/Fort_Nelson",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_GLACE_BAY",
+        "timezone": "America/Glace_Bay",
+        "dst_utc_offset_minutes": -180,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -240,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_GOOSE_BAY",
+        "timezone": "America/Goose_Bay",
+        "dst_utc_offset_minutes": -180,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -240,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_HALIFAX",
+        "timezone": "America/Halifax",
+        "dst_utc_offset_minutes": -180,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -240,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_INDIANAPOLIS",
+        "timezone": "America/Indiana/Indianapolis",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_KNOX",
+        "timezone": "America/Indiana/Knox",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_MARENGO",
+        "timezone": "America/Indiana/Marengo",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_PETERSBURG",
+        "timezone": "America/Indiana/Petersburg",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_TELL_CITY",
+        "timezone": "America/Indiana/Tell_City",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_VEVAY",
+        "timezone": "America/Indiana/Vevay",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_VINCENNES",
+        "timezone": "America/Indiana/Vincennes",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INDIANA_WINAMAC",
+        "timezone": "America/Indiana/Winamac",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_INUVIK",
+        "timezone": "America/Inuvik",
+        "dst_utc_offset_minutes": -360,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_IQALUIT",
+        "timezone": "America/Iqaluit",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_JUNEAU",
+        "timezone": "America/Juneau",
+        "dst_utc_offset_minutes": -480,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -540,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_KENTUCKY_LOUISVILLE",
+        "timezone": "America/Kentucky/Louisville",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_KENTUCKY_MONTICELLO",
+        "timezone": "America/Kentucky/Monticello",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_LOS_ANGELES",
+        "timezone": "America/Los_Angeles",
+        "dst_utc_offset_minutes": -420,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -480,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_MENOMINEE",
+        "timezone": "America/Menominee",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_METLAKATLA",
+        "timezone": "America/Metlakatla",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -480,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_MONCTON",
+        "timezone": "America/Moncton",
+        "dst_utc_offset_minutes": -180,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -240,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_NEW_YORK",
+        "timezone": "America/New_York",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_NIPIGON",
+        "timezone": "America/Nipigon",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_NOME",
+        "timezone": "America/Nome",
+        "dst_utc_offset_minutes": -480,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -540,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_NORTH_DAKOTA_BEULAH",
+        "timezone": "America/North_Dakota/Beulah",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_NORTH_DAKOTA_CENTER",
+        "timezone": "America/North_Dakota/Center",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_NORTH_DAKOTA_NEW_SALEM",
+        "timezone": "America/North_Dakota/New_Salem",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_PANGNIRTUNG",
+        "timezone": "America/Pangnirtung",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_PHOENIX",
+        "timezone": "America/Phoenix",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -420,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_RAINY_RIVER",
+        "timezone": "America/Rainy_River",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_RANKIN_INLET",
+        "timezone": "America/Rankin_Inlet",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_REGINA",
+        "timezone": "America/Regina",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_RESOLUTE",
+        "timezone": "America/Resolute",
+        "dst_utc_offset_minutes": -300,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_SITKA",
+        "timezone": "America/Sitka",
+        "dst_utc_offset_minutes": -480,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -540,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_ST_JOHNS",
+        "timezone": "America/St_Johns",
+        "dst_utc_offset_minutes": -150,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -210,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      },
+      {
+        "timezone_code": "AMER_SWIFT_CURRENT",
+        "timezone": "America/Swift_Current",
+        "dst_utc_offset_minutes": null,
+        "dst_end_rule": null,
+        "standard_utc_offset_minutes": -360,
+        "observes_dst": false,
+        "dst_start_rule": null
+      },
+      {
+        "timezone_code": "AMER_THUNDER_BAY",
+        "timezone": "America/Thunder_Bay",
+        "dst_utc_offset_minutes": -240,
+        "dst_end_rule": "First Sunday in November 02:00 local time",
+        "standard_utc_offset_minutes": -300,
+        "observes_dst": true,
+        "dst_start_rule": "Second Sunday in March 02:00 local time"
+      }
+    ],
+    "total": 57,
+    "current_page": "Pg%3D%3D",
+    "current_page_backwards": "PHM6QU1FUl9UT1JPTlRP",
+    "previous_page": null,
+    "next_page": "PnM6QU1FUl9USFVOREVSX0JBWQ%3D%3D"
+  }
+}

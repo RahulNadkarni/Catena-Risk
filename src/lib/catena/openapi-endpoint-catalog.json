@@ -1,0 +1,888 @@
+{
+  "specSourceSha": "5dec2ea7540ab248960548b91cfe5b1d2141b744",
+  "generatedAt": "2026-04-17T01:13:50.551Z",
+  "endpoints": [
+    {
+      "id": "get_v2_telematics_driver_safety_events",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/driver-safety-events",
+      "category": "Safety & Driver Behavior",
+      "operationSummary": "List Driver Safety Events",
+      "operationId": "list_driver_safety_events"
+    },
+    {
+      "id": "get_v2_telematics_users_user_id",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/users/{user_id}",
+      "category": "Drivers & Users",
+      "operationSummary": "Get User",
+      "operationId": "get_user"
+    },
+    {
+      "id": "get_v2_telematics_users",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/users",
+      "category": "Drivers & Users",
+      "operationSummary": "List Users",
+      "operationId": "list_users"
+    },
+    {
+      "id": "get_v2_telematics_vehicles_vehicle_id",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/vehicles/{vehicle_id}",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "Get Vehicle",
+      "operationId": "get_vehicle"
+    },
+    {
+      "id": "get_v2_telematics_vehicles",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/vehicles",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "List Vehicles",
+      "operationId": "list_vehicles"
+    },
+    {
+      "id": "get_v2_telematics_trailers_trailer_id",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/trailers/{trailer_id}",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "Get Trailer",
+      "operationId": "get_trailer"
+    },
+    {
+      "id": "get_v2_telematics_trailers",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/trailers",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "List Trailers",
+      "operationId": "list_trailers"
+    },
+    {
+      "id": "get_v2_telematics_ifta_summaries",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ifta-summaries",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List Ifta Summaries",
+      "operationId": "list_ifta_summaries"
+    },
+    {
+      "id": "get_v2_telematics_hos_events",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/hos-events",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List HOS Events",
+      "operationId": "list_hos_events"
+    },
+    {
+      "id": "get_v2_telematics_hos_events_hos_event_id_attachments",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/hos-events/{hos_event_id}/attachments",
+      "category": "Compliance & Regulation",
+      "operationSummary": "Get Hos Event Attachments",
+      "operationId": "get_hos_event_attachments"
+    },
+    {
+      "id": "get_v2_telematics_dvir_logs",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/dvir-logs",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List Dvir Logs",
+      "operationId": "list_dvir_logs"
+    },
+    {
+      "id": "get_v2_telematics_dvir_logs_dvir_log_id_defects",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/dvir-logs/{dvir_log_id}/defects",
+      "category": "Compliance & Regulation",
+      "operationSummary": "Get Dvir Log Defects",
+      "operationId": "get_dvir_log_defects"
+    },
+    {
+      "id": "get_v2_telematics_dvir_defects",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/dvir-defects",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List Dvir Log Defects",
+      "operationId": "list_dvir_log_defects"
+    },
+    {
+      "id": "get_v2_telematics_engine_logs",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/engine-logs",
+      "category": "Maintenance & Vehicle Health",
+      "operationSummary": "List Engine Logs",
+      "operationId": "list_engine_logs"
+    },
+    {
+      "id": "get_v2_telematics_vehicle_locations",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/vehicle-locations",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "List Vehicle Locations",
+      "operationId": "list_vehicle_locations"
+    },
+    {
+      "id": "get_v2_telematics_trailer_locations",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/trailer-locations",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "List Trailer Locations",
+      "operationId": "list_trailer_locations"
+    },
+    {
+      "id": "get_v2_telematics_hos_availabilities",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/hos-availabilities",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List HOS Availabilities",
+      "operationId": "list_hos_availabilities"
+    },
+    {
+      "id": "get_v2_telematics_hos_violations",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/hos-violations",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List HOS Violations",
+      "operationId": "list_hos_violations"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_rulesets",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-rulesets",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Rulesets",
+      "operationId": "list_rulesets_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_event_codes",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-event-codes",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Event Codes",
+      "operationId": "list_hos_event_codes_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_malfunction_codes",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-malfunction-codes",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Malfunction Codes",
+      "operationId": "list_hos_malfunction_codes_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_record_origins",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-record-origins",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Record Origins",
+      "operationId": "list_hos_record_origins_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_record_statuses",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-record-statuses",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Record Statuses",
+      "operationId": "list_hos_record_statuses_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_regions",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-regions",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Regions",
+      "operationId": "list_hos_regions_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_hos_violation_codes",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-hos-violation-codes",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List HOS Violation Codes",
+      "operationId": "list_hos_violation_codes_reference"
+    },
+    {
+      "id": "get_v2_telematics_ref_timezones",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/ref-timezones",
+      "category": "Reference Data (Supporting Tables)",
+      "operationSummary": "List Timezones",
+      "operationId": "list_timezones_reference"
+    },
+    {
+      "id": "get_v2_telematics_vehicle_sensor_events",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/vehicle-sensor-events",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "List Vehicle Sensor Events",
+      "operationId": "list_vehicle_sensor_events"
+    },
+    {
+      "id": "get_v2_telematics_vehicles_vehicle_id_sensor_events",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/vehicles/{vehicle_id}/sensor-events",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "Get Vehicle Sensor Events",
+      "operationId": "get_vehicle_sensor_events"
+    },
+    {
+      "id": "get_v2_telematics_hos_daily_snapshots",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/hos-daily-snapshots",
+      "category": "Compliance & Regulation",
+      "operationSummary": "List Hos Daily Snapshots",
+      "operationId": "list_hos_daily_snapshots"
+    },
+    {
+      "id": "get_v2_telematics_analytics_overview",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/overview",
+      "category": "Analytics",
+      "operationSummary": "Get analytics overview",
+      "operationId": "get_analytics_overview"
+    },
+    {
+      "id": "get_v2_telematics_analytics_fleets",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/fleets",
+      "category": "Analytics",
+      "operationSummary": "List fleet summaries",
+      "operationId": "list_fleet_summaries"
+    },
+    {
+      "id": "get_v2_telematics_analytics_fleets_time_series",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/fleets/time-series",
+      "category": "Analytics",
+      "operationSummary": "Get fleet growth time series",
+      "operationId": "get_fleet_growth_metrics"
+    },
+    {
+      "id": "get_v2_telematics_analytics_vehicles",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/vehicles",
+      "category": "Analytics",
+      "operationSummary": "List vehicle summaries",
+      "operationId": "list_vehicle_summaries"
+    },
+    {
+      "id": "get_v2_telematics_analytics_vehicles_time_series",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/vehicles/time-series",
+      "category": "Analytics",
+      "operationSummary": "Get vehicle growth time series",
+      "operationId": "get_vehicle_growth_metrics"
+    },
+    {
+      "id": "get_v2_telematics_analytics_vehicles_live_locations",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/vehicles/live-locations",
+      "category": "Analytics",
+      "operationSummary": "List vehicle live locations",
+      "operationId": "list_vehicle_live_locations"
+    },
+    {
+      "id": "get_v2_telematics_analytics_drivers",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/drivers",
+      "category": "Analytics",
+      "operationSummary": "List driver summaries",
+      "operationId": "list_driver_summaries"
+    },
+    {
+      "id": "get_v2_telematics_analytics_drivers_time_series",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/drivers/time-series",
+      "category": "Analytics",
+      "operationSummary": "Get driver growth time series",
+      "operationId": "get_driver_growth_metrics"
+    },
+    {
+      "id": "get_v2_telematics_analytics_trailers",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/trailers",
+      "category": "Analytics",
+      "operationSummary": "List trailer summaries",
+      "operationId": "list_trailer_summaries"
+    },
+    {
+      "id": "get_v2_telematics_analytics_trailers_time_series",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/trailers/time-series",
+      "category": "Analytics",
+      "operationSummary": "Get trailer growth time series",
+      "operationId": "get_trailer_growth_metrics"
+    },
+    {
+      "id": "get_v2_telematics_analytics_trailers_live_locations",
+      "service": "telematics",
+      "method": "GET",
+      "pathTemplate": "/v2/telematics/analytics/trailers/live-locations",
+      "category": "Analytics",
+      "operationSummary": "List trailer live locations",
+      "operationId": "list_trailer_live_locations"
+    },
+    {
+      "id": "get_v2_integrations_connections",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/connections",
+      "category": "Connections",
+      "operationSummary": "List Connections",
+      "operationId": "list_connections"
+    },
+    {
+      "id": "post_v2_integrations_connections",
+      "service": "integrations",
+      "method": "POST",
+      "pathTemplate": "/v2/integrations/connections",
+      "category": "Connections",
+      "operationSummary": "Create Connection",
+      "operationId": "create_connection"
+    },
+    {
+      "id": "get_v2_integrations_connections_connection_id",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}",
+      "category": "Connections",
+      "operationSummary": "Get Connection",
+      "operationId": "get_connection"
+    },
+    {
+      "id": "patch_v2_integrations_connections_connection_id",
+      "service": "integrations",
+      "method": "PATCH",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}",
+      "category": "Connections",
+      "operationSummary": "Update Connection",
+      "operationId": "update_connection"
+    },
+    {
+      "id": "delete_v2_integrations_connections_connection_id",
+      "service": "integrations",
+      "method": "DELETE",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}",
+      "category": "Connections",
+      "operationSummary": "Delete Connection",
+      "operationId": "delete_connection"
+    },
+    {
+      "id": "post_v2_integrations_connections_schedules_backfill",
+      "service": "integrations",
+      "method": "POST",
+      "pathTemplate": "/v2/integrations/connections/schedules/backfill",
+      "category": "Connections",
+      "operationSummary": "Backfill Schedules",
+      "operationId": "backfill_schedules"
+    },
+    {
+      "id": "get_v2_integrations_connections_connection_id_schedules",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}/schedules",
+      "category": "Connections",
+      "operationSummary": "List Schedules",
+      "operationId": "list_schedules"
+    },
+    {
+      "id": "post_v2_integrations_connections_connection_id_schedules",
+      "service": "integrations",
+      "method": "POST",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}/schedules",
+      "category": "Connections",
+      "operationSummary": "Create Schedule",
+      "operationId": "create_schedule"
+    },
+    {
+      "id": "get_v2_integrations_connections_connection_id_schedules_schedule_id",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}/schedules/{schedule_id}",
+      "category": "Connections",
+      "operationSummary": "Get Schedule",
+      "operationId": "get_schedule"
+    },
+    {
+      "id": "patch_v2_integrations_connections_connection_id_schedules_schedule_id",
+      "service": "integrations",
+      "method": "PATCH",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}/schedules/{schedule_id}",
+      "category": "Connections",
+      "operationSummary": "Update Schedule",
+      "operationId": "update_schedule"
+    },
+    {
+      "id": "delete_v2_integrations_connections_connection_id_schedules_schedule_id",
+      "service": "integrations",
+      "method": "DELETE",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}/schedules/{schedule_id}",
+      "category": "Connections",
+      "operationSummary": "Delete Schedule",
+      "operationId": "delete_schedule"
+    },
+    {
+      "id": "get_v2_integrations_connections_connection_id_schedules_schedule_id_executions",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/connections/{connection_id}/schedules/{schedule_id}/executions",
+      "category": "Connections",
+      "operationSummary": "List Executions",
+      "operationId": "list_executions"
+    },
+    {
+      "id": "get_v2_integrations_tsps",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/tsps",
+      "category": "TSP Integrations",
+      "operationSummary": "List Integrations Per Tsp",
+      "operationId": "list_integrations_per_tsp"
+    },
+    {
+      "id": "get_v2_integrations_tsps_tsp_id",
+      "service": "integrations",
+      "method": "GET",
+      "pathTemplate": "/v2/integrations/tsps/{tsp_id}",
+      "category": "TSP Integrations",
+      "operationSummary": "Get Integrations Per Tsp",
+      "operationId": "get_integrations_per_tsp"
+    },
+    {
+      "id": "get_v2_orgs_fleets",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/fleets",
+      "category": "Fleets",
+      "operationSummary": "List Fleets",
+      "operationId": "list_fleets"
+    },
+    {
+      "id": "post_v2_orgs_fleets",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/fleets",
+      "category": "Fleets",
+      "operationSummary": "Create Fleet",
+      "operationId": "create_fleet"
+    },
+    {
+      "id": "get_v2_orgs_fleets_fleet_id",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/fleets/{fleet_id}",
+      "category": "Fleets",
+      "operationSummary": "Get Fleet",
+      "operationId": "get_fleet"
+    },
+    {
+      "id": "patch_v2_orgs_fleets_fleet_id",
+      "service": "orgs",
+      "method": "PATCH",
+      "pathTemplate": "/v2/orgs/fleets/{fleet_id}",
+      "category": "Fleets",
+      "operationSummary": "Update Fleet",
+      "operationId": "update_fleet"
+    },
+    {
+      "id": "delete_v2_orgs_fleets_fleet_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/fleets/{fleet_id}",
+      "category": "Fleets",
+      "operationSummary": "Delete Fleet",
+      "operationId": "delete_fleet"
+    },
+    {
+      "id": "get_v2_orgs_fleets_fleet_id_properties",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/fleets/{fleet_id}/properties",
+      "category": "Fleets",
+      "operationSummary": "List Fleet Properties",
+      "operationId": "list_fleet_properties"
+    },
+    {
+      "id": "post_v2_orgs_fleets_fleet_id_properties",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/fleets/{fleet_id}/properties",
+      "category": "Fleets",
+      "operationSummary": "Create Fleet Properties",
+      "operationId": "create_fleet_properties"
+    },
+    {
+      "id": "delete_v2_orgs_fleets_fleet_id_properties_property_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/fleets/{fleet_id}/properties/{property_id}",
+      "category": "Fleets",
+      "operationSummary": "Delete Fleet Property",
+      "operationId": "delete_fleet_property"
+    },
+    {
+      "id": "get_v2_orgs_partners",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/partners",
+      "category": "Partners",
+      "operationSummary": "List Partners",
+      "operationId": "list_partners"
+    },
+    {
+      "id": "post_v2_orgs_partners",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/partners",
+      "category": "Partners",
+      "operationSummary": "Create Partner",
+      "operationId": "create_partner"
+    },
+    {
+      "id": "get_v2_orgs_partners_partner_id",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/partners/{partner_id}",
+      "category": "Partners",
+      "operationSummary": "Get Partner",
+      "operationId": "get_partner"
+    },
+    {
+      "id": "patch_v2_orgs_partners_partner_id",
+      "service": "orgs",
+      "method": "PATCH",
+      "pathTemplate": "/v2/orgs/partners/{partner_id}",
+      "category": "Partners",
+      "operationSummary": "Update Partner",
+      "operationId": "update_partner"
+    },
+    {
+      "id": "delete_v2_orgs_partners_partner_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/partners/{partner_id}",
+      "category": "Partners",
+      "operationSummary": "Delete Partner",
+      "operationId": "delete_partner"
+    },
+    {
+      "id": "get_v2_orgs_partners_partner_id_properties",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/partners/{partner_id}/properties",
+      "category": "Partners",
+      "operationSummary": "List Partner Properties",
+      "operationId": "list_partner_properties"
+    },
+    {
+      "id": "post_v2_orgs_partners_partner_id_properties",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/partners/{partner_id}/properties",
+      "category": "Partners",
+      "operationSummary": "Create Partner Properties",
+      "operationId": "create_partner_properties"
+    },
+    {
+      "id": "delete_v2_orgs_partners_partner_id_properties_property_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/partners/{partner_id}/properties/{property_id}",
+      "category": "Partners",
+      "operationSummary": "Delete Partner Property",
+      "operationId": "delete_partner_property"
+    },
+    {
+      "id": "get_v2_orgs_tsps",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/tsps",
+      "category": "TSPs",
+      "operationSummary": "List TSPs",
+      "operationId": "list_tsps"
+    },
+    {
+      "id": "post_v2_orgs_tsps",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/tsps",
+      "category": "TSPs",
+      "operationSummary": "Create Tsp",
+      "operationId": "create_tsp"
+    },
+    {
+      "id": "get_v2_orgs_tsps_tsp_id",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/tsps/{tsp_id}",
+      "category": "TSPs",
+      "operationSummary": "Get TSP",
+      "operationId": "get_tsp"
+    },
+    {
+      "id": "patch_v2_orgs_tsps_tsp_id",
+      "service": "orgs",
+      "method": "PATCH",
+      "pathTemplate": "/v2/orgs/tsps/{tsp_id}",
+      "category": "TSPs",
+      "operationSummary": "Update Tsp",
+      "operationId": "update_tsp"
+    },
+    {
+      "id": "delete_v2_orgs_tsps_tsp_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/tsps/{tsp_id}",
+      "category": "TSPs",
+      "operationSummary": "Delete Tsp",
+      "operationId": "delete_tsp"
+    },
+    {
+      "id": "get_v2_orgs_invitations",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/invitations",
+      "category": "Invitations",
+      "operationSummary": "List Invitations",
+      "operationId": "list_invitations"
+    },
+    {
+      "id": "post_v2_orgs_invitations",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/invitations",
+      "category": "Invitations",
+      "operationSummary": "Create Invitation",
+      "operationId": "create_invitation"
+    },
+    {
+      "id": "get_v2_orgs_invitations_invitation_id",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/invitations/{invitation_id}",
+      "category": "Invitations",
+      "operationSummary": "Get Invitation",
+      "operationId": "get_invitation"
+    },
+    {
+      "id": "delete_v2_orgs_invitations_invitation_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/invitations/{invitation_id}",
+      "category": "Invitations",
+      "operationSummary": "Delete Invitation",
+      "operationId": "delete_invitation"
+    },
+    {
+      "id": "post_v2_orgs_invitations_invitation_id_accept",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/invitations/{invitation_id}/accept",
+      "category": "Invitations",
+      "operationSummary": "Accept Invitation",
+      "operationId": "accept_invitation_v2_orgs_invitations__invitation_id__accept_post"
+    },
+    {
+      "id": "post_v2_orgs_invitations_invitation_id_decline",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/invitations/{invitation_id}/decline",
+      "category": "Invitations",
+      "operationSummary": "Decline Invitation",
+      "operationId": "decline_invitation_v2_orgs_invitations__invitation_id__decline_post"
+    },
+    {
+      "id": "get_v2_orgs_share_agreements",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/share_agreements",
+      "category": "Share Agreements",
+      "operationSummary": "List Share Agreements",
+      "operationId": "list_share_agreements"
+    },
+    {
+      "id": "post_v2_orgs_share_agreements",
+      "service": "orgs",
+      "method": "POST",
+      "pathTemplate": "/v2/orgs/share_agreements",
+      "category": "Share Agreements",
+      "operationSummary": "Create Share Agreement",
+      "operationId": "create_share_agreement"
+    },
+    {
+      "id": "get_v2_orgs_share_agreements_share_agreement_id",
+      "service": "orgs",
+      "method": "GET",
+      "pathTemplate": "/v2/orgs/share_agreements/{share_agreement_id}",
+      "category": "Share Agreements",
+      "operationSummary": "Get Share Agreement",
+      "operationId": "get_share_agreement"
+    },
+    {
+      "id": "patch_v2_orgs_share_agreements_share_agreement_id",
+      "service": "orgs",
+      "method": "PATCH",
+      "pathTemplate": "/v2/orgs/share_agreements/{share_agreement_id}",
+      "category": "Share Agreements",
+      "operationSummary": "Update Share Agreement",
+      "operationId": "update_share_agreement"
+    },
+    {
+      "id": "delete_v2_orgs_share_agreements_share_agreement_id",
+      "service": "orgs",
+      "method": "DELETE",
+      "pathTemplate": "/v2/orgs/share_agreements/{share_agreement_id}",
+      "category": "Share Agreements",
+      "operationSummary": "Delete Share Agreement",
+      "operationId": "delete_share_agreement"
+    },
+    {
+      "id": "get_v2_notifications_webhooks_webhook_id",
+      "service": "notifications",
+      "method": "GET",
+      "pathTemplate": "/v2/notifications/webhooks/{webhook_id}",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Get Webhook Subscription",
+      "operationId": "get_webhook_subscription"
+    },
+    {
+      "id": "patch_v2_notifications_webhooks_webhook_id",
+      "service": "notifications",
+      "method": "PATCH",
+      "pathTemplate": "/v2/notifications/webhooks/{webhook_id}",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Update Webhook Subscription",
+      "operationId": "update_webhook_subscription"
+    },
+    {
+      "id": "delete_v2_notifications_webhooks_webhook_id",
+      "service": "notifications",
+      "method": "DELETE",
+      "pathTemplate": "/v2/notifications/webhooks/{webhook_id}",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Delete Webhook Subscription",
+      "operationId": "delete_webhook_subscription"
+    },
+    {
+      "id": "get_v2_notifications_webhooks",
+      "service": "notifications",
+      "method": "GET",
+      "pathTemplate": "/v2/notifications/webhooks",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "List Webhook Subscriptions",
+      "operationId": "list_webhook_subscriptions"
+    },
+    {
+      "id": "post_v2_notifications_webhooks",
+      "service": "notifications",
+      "method": "POST",
+      "pathTemplate": "/v2/notifications/webhooks",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Create Webhook Subscription",
+      "operationId": "create_webhook_subscription"
+    },
+    {
+      "id": "get_v2_notifications_webhooks_webhook_id_metrics",
+      "service": "notifications",
+      "method": "GET",
+      "pathTemplate": "/v2/notifications/webhooks/{webhook_id}/metrics",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Get Webhook Subscription Metrics",
+      "operationId": "get_webhook_subscription_metrics"
+    },
+    {
+      "id": "post_v2_notifications_webhooks_webhook_id_replay",
+      "service": "notifications",
+      "method": "POST",
+      "pathTemplate": "/v2/notifications/webhooks/{webhook_id}/replay",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Replay Undelivered Messages From Dlq",
+      "operationId": "replay_undelivered_messages_from_dlq"
+    },
+    {
+      "id": "get_v2_notifications_webhooks_webhook_id_logs",
+      "service": "notifications",
+      "method": "GET",
+      "pathTemplate": "/v2/notifications/webhooks/{webhook_id}/logs",
+      "category": "Webhook Subscriptions",
+      "operationSummary": "Get Webhook Subscription Logs",
+      "operationId": "get_webhook_subscription_logs"
+    },
+    {
+      "id": "get_v2_notifications_schemas_event_name",
+      "service": "notifications",
+      "method": "GET",
+      "pathTemplate": "/v2/notifications/schemas/{event_name}",
+      "category": "Webhook Event Schemas",
+      "operationSummary": "Get Event Schema",
+      "operationId": "get_event_schema"
+    },
+    {
+      "id": "get_v2_notifications_schemas_event_name_versions_version",
+      "service": "notifications",
+      "method": "GET",
+      "pathTemplate": "/v2/notifications/schemas/{event_name}/versions/{version}",
+      "category": "Webhook Event Schemas",
+      "operationSummary": "Get Event Schema Version",
+      "operationId": "get_event_schema_versions"
+    },
+    {
+      "id": "post_protocol_openid_connect_token",
+      "service": "authentication",
+      "method": "POST",
+      "pathTemplate": "/protocol/openid-connect/token",
+      "category": "OAuth 2.0",
+      "operationSummary": "Get Token",
+      "operationId": "token"
+    },
+    {
+      "id": "post_protocol_openid_connect_revoke",
+      "service": "authentication",
+      "method": "POST",
+      "pathTemplate": "/protocol/openid-connect/revoke",
+      "category": "OAuth 2.0",
+      "operationSummary": "Revoke Token",
+      "operationId": "revokeToken"
+    }
+  ]
+}

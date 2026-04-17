@@ -1,0 +1,90 @@
+{
+  "sourcePath": "/v2/telematics/ref-hos-malfunction-codes",
+  "data": {
+    "items": [
+      {
+        "category": "Diagnostic",
+        "description": "Engine synchronization data diagnostic event (temporary loss of ECM-required data sources)",
+        "malfunction_code": "DIAG_ENGINE_SYNC",
+        "eld_code": "2"
+      },
+      {
+        "category": "Diagnostic",
+        "description": "Missing required data elements diagnostic event (record lacks required fields at time of capture)",
+        "malfunction_code": "DIAG_MISSING_DATA",
+        "eld_code": "3"
+      },
+      {
+        "category": "Diagnostic",
+        "description": "Other ELD-identified diagnostic event (provider-specific)",
+        "malfunction_code": "DIAG_OTHER",
+        "eld_code": "6"
+      },
+      {
+        "category": "Diagnostic",
+        "description": "Power data diagnostic event (power-up/power-available behavior not compliant)",
+        "malfunction_code": "DIAG_POWER",
+        "eld_code": "1"
+      },
+      {
+        "category": "Diagnostic",
+        "description": "Data transfer diagnostic event (transfer mechanism operation not confirmed)",
+        "malfunction_code": "DIAG_TRANSFER",
+        "eld_code": "4"
+      },
+      {
+        "category": "Diagnostic",
+        "description": "Unidentified driving records diagnostic event (>30 minutes unidentified driving in 24 hours)",
+        "malfunction_code": "DIAG_UNIDENTIFIED",
+        "eld_code": "5"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Engine synchronization compliance malfunction (loss of ECM-required data sources beyond threshold)",
+        "malfunction_code": "ENGINE_SYNC",
+        "eld_code": "E"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Other ELD-detected malfunction (provider-specific)",
+        "malfunction_code": "OTHER",
+        "eld_code": "O"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Positioning compliance malfunction (unable to acquire required valid position within limits)",
+        "malfunction_code": "POSITION",
+        "eld_code": "L"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Power compliance malfunction (ELD not powered as required over aggregated driving time)",
+        "malfunction_code": "POWER",
+        "eld_code": "P"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Data recording compliance malfunction (cannot record/retain or retrieve required events)",
+        "malfunction_code": "RECORDING",
+        "eld_code": "R"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Timing compliance malfunction (ELD time not within UTC tolerance)",
+        "malfunction_code": "TIMING",
+        "eld_code": "T"
+      },
+      {
+        "category": "Malfunction",
+        "description": "Data transfer compliance malfunction (transfer mechanism not confirmed over required checks)",
+        "malfunction_code": "TRANSFER",
+        "eld_code": "S"
+      }
+    ],
+    "total": 13,
+    "current_page": "Pg%3D%3D",
+    "current_page_backwards": "PA%3D%3D",
+    "previous_page": null,
+    "next_page": null
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "sourcePath": "/v2/telematics/ref-hos-record-origins",
+  "data": {
+    "items": [
+      {
+        "description": "Automatically recorded by ELD",
+        "eld_code": "1",
+        "record_origin_code": "AUTO"
+      },
+      {
+        "description": "Edited or entered by the Driver",
+        "eld_code": "2",
+        "record_origin_code": "DRIVER_EDIT"
+      },
+      {
+        "description": "Assumed from Unidentified Driver profile",
+        "eld_code": "4",
+        "record_origin_code": "UNIDENTIFIED"
+      },
+      {
+        "description": "Edit requested by another Authenticated User",
+        "eld_code": "3",
+        "record_origin_code": "USER_EDIT"
+      }
+    ],
+    "total": 4,
+    "current_page": "Pg%3D%3D",
+    "current_page_backwards": "PA%3D%3D",
+    "previous_page": null,
+    "next_page": null
+  }
+}

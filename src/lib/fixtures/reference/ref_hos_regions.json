@@ -1,0 +1,362 @@
+{
+  "sourcePath": "/v2/telematics/ref-hos-regions",
+  "data": {
+    "items": [
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "AB",
+        "region_code": "CA-AB",
+        "region_name": "ALBERTA",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "BC",
+        "region_code": "CA-BC",
+        "region_name": "BRITISH COLUMBIA",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "MB",
+        "region_code": "CA-MB",
+        "region_name": "MANITOBA",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "NB",
+        "region_code": "CA-NB",
+        "region_name": "NEW BRUNSWICK",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "NF",
+        "region_code": "CA-NF",
+        "region_name": "NEWFOUNDLAND",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "NS",
+        "region_code": "CA-NS",
+        "region_name": "NOVA SCOTIA",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "NT",
+        "region_code": "CA-NT",
+        "region_name": "NORTHWEST TERRITORIES",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "ON",
+        "region_code": "CA-ON",
+        "region_name": "ONTARIO",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "PE",
+        "region_code": "CA-PE",
+        "region_name": "PRINCE EDWARD ISLAND",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "QC",
+        "region_code": "CA-QC",
+        "region_name": "QUEBEC",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "SK",
+        "region_code": "CA-SK",
+        "region_name": "SASKATCHEWAN",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Canada",
+        "region_code_iso2": "YT",
+        "region_code": "CA-YT",
+        "region_name": "YUKON TERRITORY",
+        "country_code": "CA"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "AG",
+        "region_code": "MX-AG",
+        "region_name": "AGUASCALIENTES",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "BN",
+        "region_code": "MX-BN",
+        "region_name": "BAJA CALIFORNIA NORTE",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "BS",
+        "region_code": "MX-BS",
+        "region_name": "BAJA CALIFORNIA SUR",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "CH",
+        "region_code": "MX-CH",
+        "region_name": "COAHUILA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "CI",
+        "region_code": "MX-CI",
+        "region_name": "CHIHUAHUA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "CL",
+        "region_code": "MX-CL",
+        "region_name": "COLIMA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "CP",
+        "region_code": "MX-CP",
+        "region_name": "CAMPECHE",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "CS",
+        "region_code": "MX-CS",
+        "region_name": "CHIAPAS",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "DF",
+        "region_code": "MX-DF",
+        "region_name": "DISTRICTO FEDERAL",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "DG",
+        "region_code": "MX-DG",
+        "region_name": "DURANGO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "GE",
+        "region_code": "MX-GE",
+        "region_name": "GUERRERO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "GJ",
+        "region_code": "MX-GJ",
+        "region_name": "GUANAJUATO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "HD",
+        "region_code": "MX-HD",
+        "region_name": "HIDALGO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "JA",
+        "region_code": "MX-JA",
+        "region_name": "JALISCO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "MC",
+        "region_code": "MX-MC",
+        "region_name": "MICHOACAN",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "MR",
+        "region_code": "MX-MR",
+        "region_name": "MORELOS",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "MX",
+        "region_code": "MX-MX",
+        "region_name": "MEXICO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "NA",
+        "region_code": "MX-NA",
+        "region_name": "NAYARIT",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "NL",
+        "region_code": "MX-NL",
+        "region_name": "NUEVO LEON",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "OA",
+        "region_code": "MX-OA",
+        "region_name": "OAXACA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "PU",
+        "region_code": "MX-PU",
+        "region_name": "PUEBLA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "QE",
+        "region_code": "MX-QE",
+        "region_name": "QUERETARO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "QI",
+        "region_code": "MX-QI",
+        "region_name": "QUINTANA ROO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "SI",
+        "region_code": "MX-SI",
+        "region_name": "SINALOA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "SL",
+        "region_code": "MX-SL",
+        "region_name": "SAN LUIS POTOSI",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "SO",
+        "region_code": "MX-SO",
+        "region_name": "SONORA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "TA",
+        "region_code": "MX-TA",
+        "region_name": "TAMAULIPAS",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "TB",
+        "region_code": "MX-TB",
+        "region_name": "TABASCO",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "TL",
+        "region_code": "MX-TL",
+        "region_name": "TLAXCALA",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "VC",
+        "region_code": "MX-VC",
+        "region_name": "VERACRUZ",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "YU",
+        "region_code": "MX-YU",
+        "region_name": "YUCATAN",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "Mexico",
+        "region_code_iso2": "ZA",
+        "region_code": "MX-ZA",
+        "region_name": "ZACATECAS",
+        "country_code": "MX"
+      },
+      {
+        "country_name": "United States",
+        "region_code_iso2": "AK",
+        "region_code": "US-AK",
+        "region_name": "ALASKA",
+        "country_code": "US"
+      },
+      {
+        "country_name": "United States",
+        "region_code_iso2": "AL",
+        "region_code": "US-AL",
+        "region_name": "ALABAMA",
+        "country_code": "US"
+      },
+      {
+        "country_name": "United States",
+        "region_code_iso2": "AR",
+        "region_code": "US-AR",
+        "region_name": "ARKANSAS",
+        "country_code": "US"
+      },
+      {
+        "country_name": "United States",
+        "region_code_iso2": "AS",
+        "region_code": "US-AS",
+        "region_name": "AMERICAN SAMOA",
+        "country_code": "US"
+      },
+      {
+        "country_name": "United States",
+        "region_code_iso2": "AZ",
+        "region_code": "US-AZ",
+        "region_name": "ARIZONA",
+        "country_code": "US"
+      },
+      {
+        "country_name": "United States",
+        "region_code_iso2": "CA",
+        "region_code": "US-CA",
+        "region_name": "CALIFORNIA",
+        "country_code": "US"
+      }
+    ],
+    "total": 100,
+    "current_page": "Pg%3D%3D",
+    "current_page_backwards": "PHM6VVMtQ08%3D",
+    "previous_page": null,
+    "next_page": "PnM6VVMtQ0E%3D"
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "endpoints": [
+    {
+      "id": "phantom_listResourceOperations",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Resource Operations (meta)",
+      "operationSummary": "listResourceOperations",
+      "phantomReason": "No matching paths in catena-sdk-go specs (telematics, integrations, orgs, notifications, authentication)."
+    },
+    {
+      "id": "phantom_getResourceOperation",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Resource Operations (meta)",
+      "operationSummary": "getResourceOperation",
+      "phantomReason": "No matching paths in catena-sdk-go specs."
+    },
+    {
+      "id": "phantom_getDataFreshness",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Integrations",
+      "operationSummary": "getDataFreshness",
+      "phantomReason": "No dedicated data-freshness route in published OpenAPI; connection GET schema does not expose freshness fields."
+    },
+    {
+      "id": "phantom_listFuelTransactions",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Maintenance & Vehicle Health",
+      "operationSummary": "listFuelTransactions",
+      "phantomReason": "No fuel transaction paths in published telematics OpenAPI."
+    },
+    {
+      "id": "phantom_createFuelTransaction",
+      "service": "phantom",
+      "method": "POST",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Maintenance & Vehicle Health",
+      "operationSummary": "createFuelTransaction",
+      "phantomReason": "No fuel transaction paths in published telematics OpenAPI."
+    },
+    {
+      "id": "phantom_listMessages",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Drivers & Users",
+      "operationSummary": "listMessages",
+      "phantomReason": "No messaging paths in published telematics OpenAPI."
+    },
+    {
+      "id": "phantom_createMessage",
+      "service": "phantom",
+      "method": "POST",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Drivers & Users",
+      "operationSummary": "createMessage",
+      "phantomReason": "No messaging paths in published telematics OpenAPI."
+    },
+    {
+      "id": "phantom_listDriverVehicleAssociations",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "listDriverVehicleAssociations",
+      "phantomReason": "No association list paths in published OpenAPI."
+    },
+    {
+      "id": "phantom_listTrailerVehicleAssociations",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "listTrailerVehicleAssociations",
+      "phantomReason": "No association list paths in published OpenAPI."
+    },
+    {
+      "id": "phantom_listVehicleRegionSegments",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "listVehicleRegionSegments",
+      "phantomReason": "No region-segment paths in published telematics OpenAPI."
+    },
+    {
+      "id": "phantom_listEngineStatuses",
+      "service": "phantom",
+      "method": "GET",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "listEngineStatuses",
+      "phantomReason": "No engine-status paths; closest reads are engine-logs and vehicle-sensor-events."
+    },
+    {
+      "id": "phantom_createVehicle",
+      "service": "phantom",
+      "method": "POST",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "createVehicle",
+      "phantomReason": "Telematics vehicles collection is GET-only in published OpenAPI."
+    },
+    {
+      "id": "phantom_updateVehicle",
+      "service": "phantom",
+      "method": "PATCH",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Fleet Operations & Tracking",
+      "operationSummary": "updateVehicle",
+      "phantomReason": "Telematics vehicles collection is GET-only in published OpenAPI."
+    },
+    {
+      "id": "phantom_createUser",
+      "service": "phantom",
+      "method": "POST",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Drivers & Users",
+      "operationSummary": "createUser",
+      "phantomReason": "Telematics users collection is GET-only in published OpenAPI."
+    },
+    {
+      "id": "phantom_updateUser",
+      "service": "phantom",
+      "method": "PATCH",
+      "pathTemplate": "(not in public OpenAPI)",
+      "category": "Drivers & Users",
+      "operationSummary": "updateUser",
+      "phantomReason": "Telematics users collection is GET-only in published OpenAPI."
+    }
+  ]
+}

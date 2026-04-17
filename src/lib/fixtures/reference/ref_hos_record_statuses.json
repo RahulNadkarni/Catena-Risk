@@ -1,0 +1,32 @@
+{
+  "sourcePath": "/v2/telematics/ref-hos-record-statuses",
+  "data": {
+    "items": [
+      {
+        "eld_code": "1",
+        "record_status_code": "ACTIVE",
+        "description": "Active"
+      },
+      {
+        "eld_code": "2",
+        "record_status_code": "INACTIVE_CHANGED",
+        "description": "Inactive - Changed"
+      },
+      {
+        "eld_code": "4",
+        "record_status_code": "INACTIVE_REJECTED",
+        "description": "Inactive - Change Rejected"
+      },
+      {
+        "eld_code": "3",
+        "record_status_code": "INACTIVE_REQUESTED",
+        "description": "Inactive - Change Requested"
+      }
+    ],
+    "total": 4,
+    "current_page": "Pg%3D%3D",
+    "current_page_backwards": "PA%3D%3D",
+    "previous_page": null,
+    "next_page": null
+  }
+}
