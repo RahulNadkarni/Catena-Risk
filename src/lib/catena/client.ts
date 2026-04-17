@@ -4,11 +4,41 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { subDays } from "date-fns";
+import { z } from "zod";
 import { MethodNotInPublicSpecError } from "./errors";
+import { CursorPageResponseSchema } from "./schemas/pagination";
+import {
+  AnalyticsOverviewResponseSchema,
+  ListDvirDefectsResponseSchema,
+  ListDvirLogsResponseSchema,
+  ListDriverSafetyEventsResponseSchema,
+  ListEngineLogsResponseSchema,
+  ListHosAvailabilitiesResponseSchema,
+  ListHosDailySnapshotsResponseSchema,
+  ListHosEventsResponseSchema,
+  ListHosViolationsResponseSchema,
+  ListUsersResponseSchema,
+  ListVehicleLocationsResponseSchema,
+  ListVehiclesResponseSchema,
+} from "./schemas/telematics";
+import { ConnectionReadSchema, ListConnectionsResponseSchema } from "./schemas/integrations";
+import {
+  FleetReadSchema,
+  ListFleetsResponseSchema,
+  ListInvitationsResponseSchema,
+  ListOrgsTspsResponseSchema,
+  ListShareAgreementsResponseSchema,
+} from "./schemas/orgs";
 import type { CatenaUnknown, FleetScopedParams, PaginationParams } from "./types";
+import { validateApiResponse } from "./validate-response";
 
 const DEV_LOG =
   process.env.NODE_ENV === "development" || process.env.CATENA_DEBUG === "1";
+
+const JsonObject = z.record(z.string(), z.unknown());
+const LoosePage = CursorPageResponseSchema(JsonObject);
+/** GET responses like ref tables — cursor page of loosely-typed rows */
+const LooseRowPageSchema = LoosePage;
 
 export function describeResponseShape(value: unknown, depth = 0): unknown {
   if (depth > 2) return "(max-depth)";
@@ -175,6 +205,16 @@ export class CatenaClient {
     return res.data;
   }
 
+  private async apiGetValidated<T>(
+    path: string,
+    params: Record<string, unknown> | undefined,
+    schema: z.ZodType<T>,
+    label: string,
+  ): Promise<T> {
+    const data = await this.apiGet(path, params);
+    return validateApiResponse(schema, data, label);
+  }
+
   async apiPatch<T = CatenaUnknown>(path: string, data?: unknown): Promise<T> {
     const res = await this.apiHttp.patch<T>(path, data);
     return res.data;
@@ -206,39 +246,58 @@ export class CatenaClient {
   }
 
   private timePaged(p?: FleetScopedParams) {
-    return { ...this.page(p), ...this.window30d() };
+    const win =
+      p?.from_datetime && p?.to_datetime
+        ? { from_datetime: p.from_datetime, to_datetime: p.to_datetime }
+        : this.window30d();
+    return { ...this.page(p), ...win };
   }
 
   // --- Orgs ---
   listFleets(p?: PaginationParams) {
-    return this.apiGet("/v2/orgs/fleets", { size: p?.size ?? 50, cursor: p?.cursor });
+    return this.apiGetValidated(
+      "/v2/orgs/fleets",
+      { size: p?.size ?? 50, cursor: p?.cursor },
+      ListFleetsResponseSchema,
+      "listFleets",
+    );
   }
   getFleet(fleetId: string) {
-    return this.apiGet(`/v2/orgs/fleets/${fleetId}`);
+    return this.apiGetValidated(`/v2/orgs/fleets/${fleetId}`, undefined, FleetReadSchema, `getFleet:${fleetId}`);
   }
   listOrgsTsps(p?: PaginationParams) {
-    return this.apiGet("/v2/orgs/tsps", { size: p?.size ?? 50, cursor: p?.cursor });
+    return this.apiGetValidated("/v2/orgs/tsps", { size: p?.size ?? 50, cursor: p?.cursor }, ListOrgsTspsResponseSchema, "listOrgsTsps");
   }
   getOrgsTsp(tspId: string) {
-    return this.apiGet(`/v2/orgs/tsps/${tspId}`);
+    return this.apiGetValidated(`/v2/orgs/tsps/${tspId}`, undefined, JsonObject, `getOrgsTsp:${tspId}`);
   }
   listInvitations(p?: PaginationParams) {
-    return this.apiGet("/v2/orgs/invitations", { size: p?.size ?? 50, cursor: p?.cursor });
+    return this.apiGetValidated(
+      "/v2/orgs/invitations",
+      { size: p?.size ?? 50, cursor: p?.cursor },
+      ListInvitationsResponseSchema,
+      "listInvitations",
+    );
   }
   createInvitation(body: unknown) {
     return this.apiPost("/v2/orgs/invitations", body);
   }
   getInvitation(id: string) {
-    return this.apiGet(`/v2/orgs/invitations/${id}`);
+    return this.apiGetValidated(`/v2/orgs/invitations/${id}`, undefined, JsonObject, `getInvitation:${id}`);
   }
   deleteInvitation(id: string) {
     return this.apiDelete(`/v2/orgs/invitations/${id}`);
   }
   listShareAgreements(p?: PaginationParams) {
-    return this.apiGet("/v2/orgs/share_agreements", { size: p?.size ?? 50, cursor: p?.cursor });
+    return this.apiGetValidated(
+      "/v2/orgs/share_agreements",
+      { size: p?.size ?? 50, cursor: p?.cursor },
+      ListShareAgreementsResponseSchema,
+      "listShareAgreements",
+    );
   }
   getShareAgreement(id: string) {
-    return this.apiGet(`/v2/orgs/share_agreements/${id}`);
+    return this.apiGetValidated(`/v2/orgs/share_agreements/${id}`, undefined, JsonObject, `getShareAgreement:${id}`);
   }
   createShareAgreement(body: unknown) {
     return this.apiPost("/v2/orgs/share_agreements", body);
@@ -262,10 +321,20 @@ export class CatenaClient {
 
   // --- Integrations ---
   listConnections(p?: PaginationParams) {
-    return this.apiGet("/v2/integrations/connections", { size: p?.size ?? 50, cursor: p?.cursor });
+    return this.apiGetValidated(
+      "/v2/integrations/connections",
+      { size: p?.size ?? 50, cursor: p?.cursor },
+      ListConnectionsResponseSchema,
+      "listConnections",
+    );
   }
   getConnection(connectionId: string) {
-    return this.apiGet(`/v2/integrations/connections/${connectionId}`);
+    return this.apiGetValidated(
+      `/v2/integrations/connections/${connectionId}`,
+      undefined,
+      ConnectionReadSchema,
+      `getConnection:${connectionId}`,
+    );
   }
   getDataFreshness() {
     throw new MethodNotInPublicSpecError(
@@ -274,25 +343,34 @@ export class CatenaClient {
     );
   }
   listSchedules(connectionId: string, p?: PaginationParams) {
-    return this.apiGet(`/v2/integrations/connections/${connectionId}/schedules`, {
-      size: p?.size ?? 50,
-      cursor: p?.cursor,
-    });
+    return this.apiGetValidated(
+      `/v2/integrations/connections/${connectionId}/schedules`,
+      { size: p?.size ?? 50, cursor: p?.cursor },
+      LooseRowPageSchema,
+      `listSchedules:${connectionId}`,
+    );
   }
   getSchedule(connectionId: string, scheduleId: string) {
-    return this.apiGet(`/v2/integrations/connections/${connectionId}/schedules/${scheduleId}`);
+    return this.apiGetValidated(
+      `/v2/integrations/connections/${connectionId}/schedules/${scheduleId}`,
+      undefined,
+      JsonObject,
+      `getSchedule:${connectionId}:${scheduleId}`,
+    );
   }
   listExecutions(connectionId: string, scheduleId: string, p?: PaginationParams) {
-    return this.apiGet(
+    return this.apiGetValidated(
       `/v2/integrations/connections/${connectionId}/schedules/${scheduleId}/executions`,
       { size: p?.size ?? 50, cursor: p?.cursor },
+      LooseRowPageSchema,
+      `listExecutions:${connectionId}:${scheduleId}`,
     );
   }
   listIntegrationsTsps(p?: PaginationParams) {
-    return this.apiGet("/v2/integrations/tsps", { size: p?.size ?? 50, cursor: p?.cursor });
+    return this.apiGetValidated("/v2/integrations/tsps", { size: p?.size ?? 50, cursor: p?.cursor }, LooseRowPageSchema, "listIntegrationsTsps");
   }
   getIntegrationsTsp(tspId: string) {
-    return this.apiGet(`/v2/integrations/tsps/${tspId}`);
+    return this.apiGetValidated(`/v2/integrations/tsps/${tspId}`, undefined, JsonObject, `getIntegrationsTsp:${tspId}`);
   }
   /** Alias: “per TSP” in docs maps to GET TSP in integrations service */
   listIntegrationsPerTsp() {
@@ -304,37 +382,57 @@ export class CatenaClient {
 
   // --- Telematics fleet ops ---
   listVehicles(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/vehicles", this.page(p));
+    return this.apiGetValidated("/v2/telematics/vehicles", this.page(p), ListVehiclesResponseSchema, "listVehicles");
   }
   getVehicle(vehicleId: string) {
-    return this.apiGet(`/v2/telematics/vehicles/${vehicleId}`);
+    return this.apiGetValidated(`/v2/telematics/vehicles/${vehicleId}`, undefined, JsonObject, `getVehicle:${vehicleId}`);
   }
   listTrailers(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/trailers", this.page(p));
+    return this.apiGetValidated("/v2/telematics/trailers", this.page(p), LooseRowPageSchema, "listTrailers");
   }
   getTrailer(trailerId: string) {
-    return this.apiGet(`/v2/telematics/trailers/${trailerId}`);
+    return this.apiGetValidated(`/v2/telematics/trailers/${trailerId}`, undefined, JsonObject, `getTrailer:${trailerId}`);
   }
   listVehicleLocations(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/vehicle-locations", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/vehicle-locations", this.timePaged(p), ListVehicleLocationsResponseSchema, "listVehicleLocations");
   }
   listTrailerLocations(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/trailer-locations", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/trailer-locations", this.timePaged(p), LooseRowPageSchema, "listTrailerLocations");
   }
   listVehicleLiveLocations(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/vehicles/live-locations", this.page(p));
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/vehicles/live-locations",
+      this.page(p),
+      LooseRowPageSchema,
+      "listVehicleLiveLocations",
+    );
   }
   listTrailerLiveLocations(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/trailers/live-locations", this.page(p));
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/trailers/live-locations",
+      this.page(p),
+      LooseRowPageSchema,
+      "listTrailerLiveLocations",
+    );
   }
   listEngineLogs(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/engine-logs", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/engine-logs", this.timePaged(p), ListEngineLogsResponseSchema, "listEngineLogs");
   }
   listVehicleSensorEvents(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/vehicle-sensor-events", this.timePaged(p));
+    return this.apiGetValidated(
+      "/v2/telematics/vehicle-sensor-events",
+      this.timePaged(p),
+      LooseRowPageSchema,
+      "listVehicleSensorEvents",
+    );
   }
   getVehicleSensorEvents(vehicleId: string, p?: FleetScopedParams) {
-    return this.apiGet(`/v2/telematics/vehicles/${vehicleId}/sensor-events`, this.timePaged(p));
+    return this.apiGetValidated(
+      `/v2/telematics/vehicles/${vehicleId}/sensor-events`,
+      this.timePaged(p),
+      LooseRowPageSchema,
+      `getVehicleSensorEvents:${vehicleId}`,
+    );
   }
 
   listVehicleRegionSegments() {
@@ -358,10 +456,10 @@ export class CatenaClient {
 
   // --- Users / safety ---
   listUsers(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/users", this.page(p));
+    return this.apiGetValidated("/v2/telematics/users", this.page(p), ListUsersResponseSchema, "listUsers");
   }
   getUser(userId: string) {
-    return this.apiGet(`/v2/telematics/users/${userId}`);
+    return this.apiGetValidated(`/v2/telematics/users/${userId}`, undefined, JsonObject, `getUser:${userId}`);
   }
   createUser() {
     throw new MethodNotInPublicSpecError("createUser", "Users are read-only in telematics OpenAPI");
@@ -376,103 +474,151 @@ export class CatenaClient {
     throw new MethodNotInPublicSpecError("createMessage", "Not in published OpenAPI");
   }
   listDriverSafetyEvents(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/driver-safety-events", this.timePaged(p));
+    return this.apiGetValidated(
+      "/v2/telematics/driver-safety-events",
+      this.timePaged(p),
+      ListDriverSafetyEventsResponseSchema,
+      "listDriverSafetyEvents",
+    );
   }
 
   // --- Compliance ---
   listHosEvents(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/hos-events", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/hos-events", this.timePaged(p), ListHosEventsResponseSchema, "listHosEvents");
   }
   getHosEventAttachments(hosEventId: string) {
-    return this.apiGet(`/v2/telematics/hos-events/${hosEventId}/attachments`);
+    return this.apiGetValidated(
+      `/v2/telematics/hos-events/${hosEventId}/attachments`,
+      undefined,
+      LooseRowPageSchema,
+      `getHosEventAttachments:${hosEventId}`,
+    );
   }
   listHosViolations(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/hos-violations", this.timePaged(p));
+    return this.apiGetValidated(
+      "/v2/telematics/hos-violations",
+      this.timePaged(p),
+      ListHosViolationsResponseSchema,
+      "listHosViolations",
+    );
   }
   listHosAvailabilities(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/hos-availabilities", this.page(p));
+    return this.apiGetValidated(
+      "/v2/telematics/hos-availabilities",
+      this.page(p),
+      ListHosAvailabilitiesResponseSchema,
+      "listHosAvailabilities",
+    );
   }
   listHosDailySnapshots(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/hos-daily-snapshots", this.timePaged(p));
+    return this.apiGetValidated(
+      "/v2/telematics/hos-daily-snapshots",
+      this.timePaged(p),
+      ListHosDailySnapshotsResponseSchema,
+      "listHosDailySnapshots",
+    );
   }
   listDvirLogs(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/dvir-logs", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/dvir-logs", this.timePaged(p), ListDvirLogsResponseSchema, "listDvirLogs");
   }
   listDvirDefects(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/dvir-defects", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/dvir-defects", this.timePaged(p), ListDvirDefectsResponseSchema, "listDvirDefects");
   }
   getDvirLogDefects(dvirLogId: string) {
-    return this.apiGet(`/v2/telematics/dvir-logs/${dvirLogId}/defects`);
+    return this.apiGetValidated(
+      `/v2/telematics/dvir-logs/${dvirLogId}/defects`,
+      undefined,
+      ListDvirDefectsResponseSchema,
+      `getDvirLogDefects:${dvirLogId}`,
+    );
   }
   listIftaSummaries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/ifta-summaries", this.timePaged(p));
+    return this.apiGetValidated("/v2/telematics/ifta-summaries", this.timePaged(p), LooseRowPageSchema, "listIftaSummaries");
   }
 
   // --- Reference ---
   listHosRulesets() {
-    return this.apiGet("/v2/telematics/ref-hos-rulesets");
+    return this.apiGetValidated("/v2/telematics/ref-hos-rulesets", undefined, LooseRowPageSchema, "listHosRulesets");
   }
   listHosEventCodes() {
-    return this.apiGet("/v2/telematics/ref-hos-event-codes");
+    return this.apiGetValidated("/v2/telematics/ref-hos-event-codes", undefined, LooseRowPageSchema, "listHosEventCodes");
   }
   listHosMalfunctionCodes() {
-    return this.apiGet("/v2/telematics/ref-hos-malfunction-codes");
+    return this.apiGetValidated(
+      "/v2/telematics/ref-hos-malfunction-codes",
+      undefined,
+      LooseRowPageSchema,
+      "listHosMalfunctionCodes",
+    );
   }
   listHosRecordOrigins() {
-    return this.apiGet("/v2/telematics/ref-hos-record-origins");
+    return this.apiGetValidated("/v2/telematics/ref-hos-record-origins", undefined, LooseRowPageSchema, "listHosRecordOrigins");
   }
   listHosRecordStatuses() {
-    return this.apiGet("/v2/telematics/ref-hos-record-statuses");
+    return this.apiGetValidated("/v2/telematics/ref-hos-record-statuses", undefined, LooseRowPageSchema, "listHosRecordStatuses");
   }
   listHosRegions() {
-    return this.apiGet("/v2/telematics/ref-hos-regions");
+    return this.apiGetValidated("/v2/telematics/ref-hos-regions", undefined, LooseRowPageSchema, "listHosRegions");
   }
   listHosViolationCodes() {
-    return this.apiGet("/v2/telematics/ref-hos-violation-codes");
+    return this.apiGetValidated("/v2/telematics/ref-hos-violation-codes", undefined, LooseRowPageSchema, "listHosViolationCodes");
   }
   listTimezones() {
-    return this.apiGet("/v2/telematics/ref-timezones");
+    return this.apiGetValidated("/v2/telematics/ref-timezones", undefined, LooseRowPageSchema, "listTimezones");
   }
 
   // --- Analytics ---
   getAnalyticsOverview(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/overview", this.page(p));
+    return this.apiGetValidated("/v2/telematics/analytics/overview", this.page(p), AnalyticsOverviewResponseSchema, "getAnalyticsOverview");
   }
   listFleetSummaries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/fleets", this.page(p));
+    return this.apiGetValidated("/v2/telematics/analytics/fleets", this.page(p), LooseRowPageSchema, "listFleetSummaries");
   }
   getFleetGrowthTimeSeries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/fleets/time-series", {
-      ...this.page(p),
-      period_days: 30,
-    });
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/fleets/time-series",
+      { ...this.page(p), period_days: 30 },
+      JsonObject,
+      "getFleetGrowthTimeSeries",
+    );
   }
   listVehicleSummaries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/vehicles", this.page(p));
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/vehicles",
+      this.page(p),
+      LooseRowPageSchema,
+      "listVehicleSummaries",
+    );
   }
   getVehicleGrowthTimeSeries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/vehicles/time-series", {
-      ...this.page(p),
-      period_days: 30,
-    });
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/vehicles/time-series",
+      { ...this.page(p), period_days: 30 },
+      JsonObject,
+      "getVehicleGrowthTimeSeries",
+    );
   }
   listDriverSummaries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/drivers", this.page(p));
+    return this.apiGetValidated("/v2/telematics/analytics/drivers", this.page(p), LooseRowPageSchema, "listDriverSummaries");
   }
   getDriverGrowthTimeSeries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/drivers/time-series", {
-      ...this.page(p),
-      period_days: 30,
-    });
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/drivers/time-series",
+      { ...this.page(p), period_days: 30 },
+      JsonObject,
+      "getDriverGrowthTimeSeries",
+    );
   }
   listTrailerSummaries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/trailers", this.page(p));
+    return this.apiGetValidated("/v2/telematics/analytics/trailers", this.page(p), LooseRowPageSchema, "listTrailerSummaries");
   }
   getTrailerGrowthTimeSeries(p?: FleetScopedParams) {
-    return this.apiGet("/v2/telematics/analytics/trailers/time-series", {
-      ...this.page(p),
-      period_days: 30,
-    });
+    return this.apiGetValidated(
+      "/v2/telematics/analytics/trailers/time-series",
+      { ...this.page(p), period_days: 30 },
+      JsonObject,
+      "getTrailerGrowthTimeSeries",
+    );
   }
 
   listFuelTransactions() {
