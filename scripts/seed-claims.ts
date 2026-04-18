@@ -1,57 +1,69 @@
 /**
- * Seeds 2 demo claims into the SQLite database. Idempotent — safe to run multiple times.
+ * Seeds 2 demo incident packets from real Catena API data. Idempotent — safe to run multiple times.
  *
- * Claim KS-2026-0142: Exonerating scenario (strong defense position)
- * Claim KS-2026-0157: Inculpating scenario (unfavorable evidence — consider settlement)
+ * Both claims use buildRealSingleIncidentPacket — real driver, vehicle, HOS, DVIR, safety events,
+ * GPS coordinates, NOAA weather, and OSM road context. No hardcoded scenario names or speeds.
+ *
+ * Claim KS-2026-0142: Driver with fewest safety events (lower-risk profile)
+ * Claim KS-2026-0157: Driver with most safety events (higher-risk profile)
  */
 import "./load-env";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Resolve project root so @/ aliases can be shimmed
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
-const SCENARIO_IDS = ["KS-2026-0142", "KS-2026-0157"] as const;
+const CLAIMS = [
+  { claimNumber: "KS-2026-0142", driverProfile: "fewest_events" as const },
+  { claimNumber: "KS-2026-0157", driverProfile: "most_events" as const },
+];
 
 async function main() {
-  // Dynamic imports kept inside main() to avoid top-level await (CJS compat with tsx)
-  const { generateDefensePacketFromApi } = await import(path.join(ROOT, "src/lib/claims/fetch-scenario.ts"));
-  const { buildDefenseNarrative } = await import(path.join(ROOT, "src/lib/claims/narrative.ts"));
-  const { insertClaim, getClaimByNumber } = await import(path.join(ROOT, "src/lib/db/claims.ts"));
-  const { listHeroFleetIds } = await import(path.join(ROOT, "src/lib/underwriting/hero-fleets.ts"));
+  const { buildRealSingleIncidentPacket } = await import(path.join(ROOT, "src/lib/claims/fetch-scenario.ts"));
+  const { insertClaim, getClaimByNumber, getClaimsDb } = await import(path.join(ROOT, "src/lib/db/claims.ts"));
 
-  const heroIds = await listHeroFleetIds();
-
-  for (let i = 0; i < SCENARIO_IDS.length; i++) {
-    const scenarioId = SCENARIO_IDS[i];
-    const existing = getClaimByNumber(scenarioId);
-
-    if (existing) {
-      console.log(`[seed-claims] ${scenarioId} already exists — skipping`);
-      continue;
+  // Delete any existing seeded demo claims so we re-pull with fresh API data
+  const db = getClaimsDb();
+  const existing = CLAIMS.filter(({ claimNumber: n }) => getClaimByNumber(n));
+  if (existing.length > 0) {
+    for (const { claimNumber: n } of existing) {
+      db.prepare("DELETE FROM claims WHERE claim_number = ?").run(n);
+      console.log(`[seed-claims] Cleared existing ${n}`);
     }
+  }
 
-    const packet = await generateDefensePacketFromApi(scenarioId);
-    packet.defenseNarrative = buildDefenseNarrative(packet);
+  for (const { claimNumber, driverProfile } of CLAIMS) {
+    console.log(`[seed-claims] Pulling ${claimNumber} from Catena API (profile: ${driverProfile})…`);
+    try {
+      const packet = await buildRealSingleIncidentPacket(claimNumber, { driverProfile });
 
-    const fleetId = heroIds[i] ?? "demo";
+      insertClaim({
+        id: randomUUID(),
+        claimNumber: packet.claimNumber,
+        fleetId: "demo",
+        status: "open",
+        incidentAt: packet.incidentAt,
+        incidentLocation: packet.incidentLocation,
+        driverName: packet.driverName,
+        vehicleUnit: packet.vehicleUnit,
+        dataCompleteness: packet.dataCompleteness.status,
+        incidentPacket: packet,
+      });
 
-    insertClaim({
-      id: randomUUID(),
-      claimNumber: packet.claimNumber,
-      fleetId,
-      status: "open",
-      incidentAt: packet.incidentAt,
-      incidentLocation: packet.incidentLocation,
-      driverName: packet.driverName,
-      vehicleUnit: packet.vehicleUnit,
-      disposition: packet.disposition,
-      defensePacket: packet,
-    });
-
-    console.log(`[seed-claims] Seeded ${scenarioId} (${packet.disposition})`);
+      console.log(`[seed-claims] Seeded ${claimNumber}`);
+      console.log(`  Driver   : ${packet.driverName}`);
+      console.log(`  Vehicle  : ${packet.vehicleUnit}`);
+      console.log(`  At       : ${packet.incidentAt}`);
+      console.log(`  Location : ${packet.incidentLocation}`);
+      console.log(`  Events   : ${packet.safetyEventsInWindow.length} in 30-min window`);
+      console.log(`  HOS      : ${packet.hosSnapshot.dutyStatusAtIncident}`);
+      console.log(`  Weather  : ${packet.weatherContext.source} — ${packet.weatherContext.conditionDescription}`);
+      console.log(`  Quality  : ${packet.dataCompleteness.status}`);
+    } catch (e) {
+      console.error(`[seed-claims] Failed to seed ${claimNumber}:`, (e as Error).message);
+    }
   }
 
   console.log("[seed-claims] Done.");

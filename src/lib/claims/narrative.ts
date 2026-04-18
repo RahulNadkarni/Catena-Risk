@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import type { DefensePacket } from "./types";
+import type { IncidentPacket } from "./types";
 
 function fmtDate(iso: string): string {
   try {
@@ -16,91 +16,115 @@ function fmtHours(h: number): string {
   return `${hrs}h ${mins}m`;
 }
 
-export function buildDefenseNarrative(packet: DefensePacket): string {
+/** Build a factual incident summary for insurers — no legal strategy, no settlement recommendations. */
+export function buildIncidentSummary(packet: IncidentPacket): string {
   const {
     claimNumber,
     incidentAt,
     incidentLocation,
     incidentDescription,
     driverName,
+    driverId,
     vehicleUnit,
     vehicleVin,
     speedAtImpactMph,
-    speedLimitMph,
+    postedSpeedLimitMph,
     maxSpeedInWindowMph,
-    safetyEventsWindow,
+    safetyEventsInWindow,
     hosSnapshot,
     dvirRecords,
-    disposition,
-    dispositionRationale,
-    dispositionFactors,
+    weatherContext,
+    roadContext,
+    carrierContext,
+    dataCompleteness,
   } = packet;
 
-  const p1 = `This defense analysis covers claim **${claimNumber}** — a **${incidentDescription.toLowerCase()}** incident occurring at **${incidentLocation}** on **${fmtDate(incidentAt)}**. The involved unit is **${vehicleUnit}** (VIN ${vehicleVin}), operated by driver **${driverName}**. All telematics evidence was retrieved via the Catena Clearing unified data layer and covers a 72-hour pre-incident window. Data marked as synthetic is clearly identified and is provided for demonstration purposes only.`;
+  const p1 = `**Incident Report — Claim ${claimNumber}**\n\n` +
+    `Incident occurred at **${incidentLocation}** on **${fmtDate(incidentAt)}**. ` +
+    `Description: ${incidentDescription}. ` +
+    `Involved unit: **${vehicleUnit}** (VIN: ${vehicleVin}), driver: **${driverName}**` +
+    (driverId ? ` (ID: ${driverId})` : "") + `. ` +
+    `All telematics data sourced from the Catena Clearing unified data layer. ` +
+    `Data completeness: **${dataCompleteness.status}**.`;
 
-  // Speed paragraph
-  let p2: string;
-  if (speedAtImpactMph <= speedLimitMph) {
-    p2 = `**Speed telemetry** demonstrates the vehicle was traveling at **${speedAtImpactMph} mph** at time of impact — **${speedLimitMph - speedAtImpactMph} mph below** the posted ${speedLimitMph} mph limit. The maximum recorded speed in the 72-minute pre-incident window was ${maxSpeedInWindowMph.toFixed(1)} mph, also within the posted limit. Speed data does not support the plaintiff's allegation of excess velocity and constitutes a significant exonerating factor.`;
-  } else {
-    p2 = `**Speed telemetry** records the vehicle traveling at **${speedAtImpactMph} mph** at time of impact — **${speedAtImpactMph - speedLimitMph} mph above** the posted ${speedLimitMph} mph limit. The maximum recorded speed in the 72-minute window was ${maxSpeedInWindowMph.toFixed(1)} mph. Speed violations documented via telematics are admissible and constitute a material liability factor that opposing counsel will likely exploit.`;
-  }
+  // Speed
+  const speedRelative = postedSpeedLimitMph != null
+    ? speedAtImpactMph <= postedSpeedLimitMph
+      ? `**${postedSpeedLimitMph - speedAtImpactMph} mph below** the posted ${postedSpeedLimitMph} mph limit`
+      : `**${speedAtImpactMph - postedSpeedLimitMph} mph above** the posted ${postedSpeedLimitMph} mph limit`
+    : "(posted speed limit unavailable from OSM)";
+  const p2 = `**Speed Telemetry:** Vehicle speed at impact was **${speedAtImpactMph} mph** — ${speedRelative}. ` +
+    `Maximum recorded speed in the 72-minute pre-incident window: ${maxSpeedInWindowMph.toFixed(1)} mph. ` +
+    (roadContext?.source === "osm" && roadContext.postedSpeedLimitMph
+      ? `Speed limit sourced from OpenStreetMap (OSM way ${roadContext.osmWayId ?? "unknown"}).`
+      : "Speed limit not available from external sources.");
 
-  // Safety events paragraph
-  let p3: string;
-  if (safetyEventsWindow.length === 0) {
-    p3 = `**Behavioral event record:** The 30-minute pre-incident window is **clean** — zero hard-braking, harsh-cornering, speeding, or distraction events were recorded. The absence of pre-incident behavioral alerts is a favorable finding, indicating the driver was operating within normal parameters immediately prior to the collision.`;
-  } else {
-    const evtList = safetyEventsWindow
-      .map(
-        (e) =>
-          `a **${e.type.replace("_", "-")}** event (severity: ${e.severity}) at T${e.offsetMinutes < 0 ? e.offsetMinutes : "+" + e.offsetMinutes} minutes (${e.description})`,
-      )
-      .join("; ");
-    p3 = `**Behavioral event record:** The pre-incident window contains ${safetyEventsWindow.length} recorded event(s): ${evtList}. These events are time-stamped with sub-minute precision and are directly relevant to plaintiff's theory of liability. The sequence — ${safetyEventsWindow.map((e) => e.type.replace("_", "-")).join(" → ")} — is consistent with aggressive vehicle operation immediately prior to impact.`;
-  }
+  // Safety events
+  const p3 = safetyEventsInWindow.length === 0
+    ? `**Pre-Incident Behavior (30-min window):** No hard-braking, harsh-cornering, speeding, or distraction events recorded in the 30 minutes preceding the incident.`
+    : `**Pre-Incident Behavior (30-min window):** ${safetyEventsInWindow.length} safety event(s) recorded: ` +
+      safetyEventsInWindow
+        .map((e) => `${e.type.replace(/_/g, " ")} (${e.severity}) at T${e.offsetMinutes}min`)
+        .join("; ") + ".";
 
-  // HOS paragraph
-  let p4: string;
-  const driveRemaining = hosSnapshot.hoursUntilDriveLimit;
-  const cycleRemaining = hosSnapshot.hoursUntilCycleLimit;
-  if (hosSnapshot.isCompliant && driveRemaining >= 3) {
-    p4 = `**Hours of Service:** ELD records confirm the driver had **${fmtHours(driveRemaining)}** of drive time remaining under the 11-hour rule and **${fmtHours(cycleRemaining)}** remaining in the 70-hour/8-day cycle. Duty status at incident time was **${hosSnapshot.dutyStatusAtIncident.replace(/_/g, " ")}**. No HOS violations are present in the record; fatigue as a contributing factor is not supported by the telematics evidence.`;
-  } else {
-    p4 = `**Hours of Service:** ELD records show the driver had only **${fmtHours(driveRemaining)}** of drive time remaining under the 11-hour rule and **${fmtHours(cycleRemaining)}** remaining in the 70-hour cycle at time of incident. ${hosSnapshot.violationNote ?? ""} While the driver was technically compliant at the moment of impact, courts and juries frequently view sub-1-hour remaining drive time as an operational fatigue indicator. This constitutes a significant liability exposure that should be assessed in settlement valuation.`;
-  }
+  // HOS
+  const hos = hosSnapshot;
+  const p4 = `**Hours of Service (at incident time):** Drive time used: ${fmtHours(hos.driveTimeUsedHours)} of ${hos.driveTimeLimitHours}h (${fmtHours(hos.hoursUntilDriveLimit)} remaining). ` +
+    `Cycle used: ${fmtHours(hos.cycleUsedHours)} of ${hos.cycleLimitHours}h (${fmtHours(hos.hoursUntilCycleLimit)} remaining). ` +
+    `Duty status at incident: **${hos.dutyStatusAtIncident.replace(/_/g, " ")}**. ` +
+    `HOS compliance: **${hos.isCompliant ? "Compliant" : "Non-compliant"}**.` +
+    (hos.violationNote ? ` Note: ${hos.violationNote}` : "");
 
-  // DVIR paragraph
+  // DVIR
   const unsatRecords = dvirRecords.filter((r) => r.status === "unsatisfactory");
-  const openCritical = unsatRecords.flatMap((r) => r.defects.filter((d) => d.severity === "critical" && !d.resolvedAt));
-  let p5: string;
-  if (openCritical.length === 0) {
-    const totalInspections = dvirRecords.length;
-    p5 = `**Vehicle maintenance:** All ${totalInspections} DVIR inspection(s) in the 60-day pre-incident window returned **satisfactory** with no open defects at time of incident. No brake, tire, lighting, or structural defects are documented. Vehicle condition is not a contributory factor based on the available inspection record.`;
-  } else {
-    const defectList = openCritical.map((d) => `**${d.component}** (critical, unresolved)`).join("; ");
-    const daysOutstanding = openCritical
-      .map((d) => {
-        const rec = dvrRecordForDefect(dvirRecords, d.id);
-        if (!rec) return "";
-        const daysAgo = Math.round(
-          (new Date(incidentAt).getTime() - new Date(rec.inspectedAt).getTime()) / (1000 * 60 * 60 * 24),
-        );
-        return `${daysAgo} days prior`;
-      })
-      .filter(Boolean)
-      .join(", ");
-    p5 = `**Vehicle maintenance:** DVIR records identify ${openCritical.length} **critical, unresolved defect(s)** flagged ${daysOutstanding}: ${defectList}. Unresolved critical defects — particularly brake-system defects — create direct strict-liability exposure under FMCSA 49 CFR Part 396. Plaintiff counsel will subpoena these records. Settlement valuation must account for the substantial punitive-damages risk arising from documented deferred maintenance.`;
+  const openCritical = unsatRecords.flatMap((r) =>
+    r.defects.filter((d) => d.severity === "critical" && !d.resolvedAt),
+  );
+  const p5 = openCritical.length === 0
+    ? `**Vehicle Inspection (60-day window):** ${dvirRecords.length} DVIR record(s) on file. ` +
+      (dvirRecords.length > 0
+        ? `${unsatRecords.length === 0 ? "All inspections returned satisfactory with no open defects." : `${unsatRecords.length} unsatisfactory record(s); no open critical defects at incident time.`}`
+        : "No DVIR records available.")
+    : `**Vehicle Inspection (60-day window):** ${openCritical.length} open critical defect(s) at incident time: ` +
+      openCritical.map((d) => `${d.component} (unresolved)`).join("; ") + `. ` +
+      `Defects documented via DVIR; resolution status: unresolved as of incident date.`;
+
+  // Weather
+  let p6 = "";
+  if (weatherContext) {
+    if (weatherContext.source === "noaa") {
+      p6 = `**Weather Conditions (NOAA):** Station: ${weatherContext.stationName ?? weatherContext.stationId} ` +
+        `(${weatherContext.stationDistanceKm} km from incident). ` +
+        `${weatherContext.conditionDescription ?? "Conditions recorded"}. ` +
+        `Road condition: **${weatherContext.roadCondition}**.` +
+        (weatherContext.rawObservationUrl ? ` Source: ${weatherContext.rawObservationUrl}` : "");
+    } else {
+      p6 = `**Weather Conditions:** NOAA data unavailable — ${weatherContext.conditionDescription ?? "fetch failed"}.`;
+    }
   }
 
-  // Disposition paragraph
-  const isFavorable = disposition === "STRONG_DEFENSE_POSITION";
-  const factorBullets = dispositionFactors.map((f) => `- ${f}`).join("\n");
-  const p6 = `**Disposition: ${isFavorable ? "STRONG DEFENSE POSITION" : "UNFAVORABLE EVIDENCE — CONSIDER EARLY SETTLEMENT"}**\n\n${dispositionRationale}\n\n**Key factors:**\n${factorBullets}`;
+  // Carrier safety
+  let p7 = "";
+  if (carrierContext) {
+    if (carrierContext.source === "fmcsa" && carrierContext.dotNumber) {
+      p7 = `**Carrier Safety (FMCSA SAFER):** DOT# ${carrierContext.dotNumber} — ${carrierContext.carrierName ?? "carrier name unavailable"}. ` +
+        `Safety rating: **${carrierContext.safetyRating ?? "not rated"}**. ` +
+        (carrierContext.crashTotal24m != null ? `Crashes (24m): ${carrierContext.crashTotal24m}. ` : "") +
+        (carrierContext.outOfServiceRateDrivers != null
+          ? `Driver OOS rate: ${(carrierContext.outOfServiceRateDrivers * 100).toFixed(1)}%. `
+          : "");
+    } else {
+      p7 = `**Carrier Safety:** FMCSA data unavailable.`;
+    }
+  }
 
-  return [p1, p2, p3, p4, p5, p6].join("\n\n");
-}
+  // Data completeness note
+  const missing = dataCompleteness.missingFields;
+  const p8 = missing.length > 0
+    ? `**Data Gaps:** The following fields could not be populated from available sources: ${missing.join(", ")}.`
+    : `**Data Completeness:** All primary evidence fields populated.`;
 
-function dvrRecordForDefect(records: DefensePacket["dvirRecords"], defectId: string) {
-  return records.find((r) => r.defects.some((d) => d.id === defectId));
+  return [p1, p2, p3, p4, p5, p6, p7, p8]
+    .filter(Boolean)
+    .join("\n\n");
 }

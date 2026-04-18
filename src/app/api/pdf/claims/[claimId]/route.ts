@@ -1,7 +1,7 @@
 import { renderToStream } from "@react-pdf/renderer";
 import { NextResponse } from "next/server";
 import { getClaim } from "@/lib/db/claims";
-import type { DefensePacket } from "@/lib/claims/types";
+import type { IncidentPacket } from "@/lib/claims/types";
 import { DefensePacketPDF } from "@/lib/pdf/defense-packet-pdf";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function GET(
   const row = getClaim(params.claimId);
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const packet = JSON.parse(row.defense_packet_json) as DefensePacket;
+  const packet = JSON.parse(row.incident_packet_json) as IncidentPacket;
 
   const stream = await renderToStream(DefensePacketPDF({ packet }));
 
@@ -23,7 +23,7 @@ export async function GET(
   }
   const pdf = Buffer.concat(chunks);
 
-  const name = `keystone-defense-packet-${packet.claimNumber}.pdf`;
+  const name = `incident-evidence-${packet.claimNumber}.pdf`;
   return new NextResponse(pdf, {
     headers: {
       "Content-Type": "application/pdf",

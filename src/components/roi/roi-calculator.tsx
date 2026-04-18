@@ -13,6 +13,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import type { FleetRoiMetrics } from "@/app/actions/roi";
 
 interface Inputs {
   annualPremiumM: number;       // $M
@@ -122,13 +124,13 @@ function ResultRow({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-export function RoiCalculator() {
+export function RoiCalculator({ metrics }: { metrics: FleetRoiMetrics | null }) {
   const [inp, setInp] = useState<Inputs>({
     annualPremiumM: 120,
-    currentLossRatioPct: 75,
+    currentLossRatioPct: metrics?.suggestedLossRatioPct ?? 75,
     insuredFleets: 800,
     quotesPerYear: 2500,
-    claimsPerYear: 400,
+    claimsPerYear: metrics?.suggestedClaimsPerYear ?? 400,
     acvK: 600,
   });
 
@@ -168,13 +170,52 @@ export function RoiCalculator() {
   }
 
   return (
+    <div className="space-y-6">
+      {/* Real fleet metrics from Catena API */}
+      {metrics && (
+        <Card className="border-blue-200 bg-blue-50/40">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base">Live fleet baseline</CardTitle>
+              <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50 text-xs">
+                Catena API · {metrics.dataWindowDays}-day window
+              </Badge>
+            </div>
+            <CardDescription>
+              Real telematics data from {metrics.totalDrivers} drivers across {metrics.totalVehicles} vehicles.
+              Loss ratio and claims inputs pre-set from actual fleet performance.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: "Safety events/driver-month", value: metrics.safetyEventsPerDriverMonth.toFixed(1), sub: `${metrics.safetyEventCount30d} events, ${metrics.dataWindowDays}d` },
+                { label: "HOS violations/driver-month", value: metrics.hosViolationsPerDriverMonth.toFixed(1), sub: `${metrics.hosViolationCount30d} violations` },
+                { label: "DVIR defect rate", value: `${(metrics.dvirDefectRate * 100).toFixed(1)}%`, sub: `of ${metrics.dvirLogCount} inspections` },
+                { label: "Total drivers", value: metrics.totalDrivers, sub: `${metrics.totalVehicles} vehicles` },
+              ].map(({ label, value, sub }) => (
+                <div key={label} className="rounded-lg border border-blue-200 bg-white px-3 py-2">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-xl font-semibold tabular-nums text-blue-900">{value}</p>
+                  <p className="text-xs text-muted-foreground">{sub}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
     <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
       {/* Inputs */}
       <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Business inputs</CardTitle>
-            <CardDescription>Keystone scenario defaults pre-loaded — adjust to model your book.</CardDescription>
+            <CardDescription>
+              {metrics
+                ? "Loss ratio and claims pre-loaded from live Catena fleet data — adjust to model your full book."
+                : "Keystone scenario defaults — adjust to model your book."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <NumberInput label="Annual premium" value={inp.annualPremiumM} onChange={(v) => set("annualPremiumM", v)} prefix="$" suffix="M" step={10} />
@@ -253,9 +294,12 @@ export function RoiCalculator() {
 
         <p className="text-xs text-muted-foreground leading-relaxed">
           Illustrative model only. Actual ROI depends on portfolio composition, implementation, and underwriting discipline.
-          The 4pt loss ratio improvement is directional based on telematics-informed selection research.
+          {metrics
+            ? " Loss ratio and claims inputs derived from live Catena fleet data."
+            : " The 4pt loss ratio improvement is directional based on telematics-informed selection research."}
         </p>
       </div>
+    </div>
     </div>
   );
 }

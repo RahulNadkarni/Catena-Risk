@@ -6,17 +6,22 @@ import { RiskDistributionChart } from "@/components/portfolio/risk-distribution"
 import { PortfolioTrendChart } from "@/components/portfolio/trend-chart";
 import { PortfolioFleetTable } from "@/components/portfolio/fleet-table";
 import { DeteriorationAlerts } from "@/components/portfolio/deterioration-alerts";
+import { TopRiskDriversCard } from "@/components/portfolio/top-risk-drivers";
+import { SafetyEventBreakdownCard } from "@/components/portfolio/event-breakdown";
 import { fetchPortfolioOverview, fetchPortfolioTimeSeries } from "@/lib/catena/portfolio-analytics";
+import { fetchTopRiskDrivers, fetchSafetyEventBreakdown } from "@/lib/catena/fleet-risk";
 import { getPortfolioRows } from "@/app/actions/portfolio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
-  const [overview, timeSeries, rows] = await Promise.all([
+  const [overview, timeSeries, rows, topRiskDrivers, eventBreakdown] = await Promise.all([
     fetchPortfolioOverview(),
     fetchPortfolioTimeSeries(),
     getPortfolioRows(),
+    fetchTopRiskDrivers(10),
+    fetchSafetyEventBreakdown(),
   ]);
 
   const scores = rows.map((r) => r.score);
@@ -60,6 +65,12 @@ export default async function PortfolioPage() {
             <PortfolioTrendChart timeSeries={timeSeries} />
           </CardContent>
         </Card>
+      </div>
+
+      {/* Live driver + event analytics */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TopRiskDriversCard drivers={topRiskDrivers} />
+        <SafetyEventBreakdownCard breakdown={eventBreakdown} />
       </div>
 
       <Separator />

@@ -20,6 +20,7 @@
     "inspect:fleet": "npx tsx scripts/inspect-fleet.ts",
     "score:fleet": "npx tsx scripts/score-fleet.ts",
     "seed:claims": "npx tsx scripts/seed-claims.ts",
+    "seed:real": "npx tsx scripts/seed-real-claim.ts",
     "rehearse": "npx tsx scripts/rehearse.ts",
     "test": "vitest run",
     "test:watch": "vitest"

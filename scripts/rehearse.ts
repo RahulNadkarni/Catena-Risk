@@ -33,9 +33,8 @@ async function main() {
   const { computePeerBenchmarks } = await import(path.join(ROOT, "src/lib/risk/peer-benchmarks.ts"));
   const { computeRiskScore } = await import(path.join(ROOT, "src/lib/risk/scoring.ts"));
   const { insertSubmission, getDb } = await import(path.join(ROOT, "src/lib/db/submissions.ts"));
-  const { generateDefensePacketFromApi } = await import(path.join(ROOT, "src/lib/claims/fetch-scenario.ts"));
-  const { buildDefenseNarrative } = await import(path.join(ROOT, "src/lib/claims/narrative.ts"));
-  const { insertClaim, getClaimByNumber } = await import(path.join(ROOT, "src/lib/db/claims.ts"));
+  const { buildRealSingleIncidentPacket } = await import(path.join(ROOT, "src/lib/claims/fetch-scenario.ts"));
+  const { insertClaim, getClaimByNumber, getClaimsDb } = await import(path.join(ROOT, "src/lib/db/claims.ts"));
 
   const heroIds = await listHeroFleetIds();
   const heroOptions = await listHeroFleetOptions();
@@ -96,16 +95,18 @@ async function main() {
 
   // Seed claims
   console.log("\n  Seeding demo claims…");
-  const SCENARIOS = ["KS-2026-0142", "KS-2026-0157"] as const;
+  const CLAIM_PROFILES = [
+    { claimNumber: "KS-2026-0142", driverProfile: "fewest_events" as const },
+    { claimNumber: "KS-2026-0157", driverProfile: "most_events" as const },
+  ];
   let claimsSeeded = 0;
-  for (let i = 0; i < SCENARIOS.length; i++) {
-    const scenarioId = SCENARIOS[i]!;
-    if (getClaimByNumber(scenarioId)) {
-      console.log(`  ✓ ${scenarioId} — already seeded`);
+  for (let i = 0; i < CLAIM_PROFILES.length; i++) {
+    const { claimNumber, driverProfile } = CLAIM_PROFILES[i]!;
+    if (getClaimByNumber(claimNumber)) {
+      console.log(`  ✓ ${claimNumber} — already seeded`);
       continue;
     }
-    const packet = await generateDefensePacketFromApi(scenarioId);
-    packet.defenseNarrative = buildDefenseNarrative(packet);
+    const packet = await buildRealSingleIncidentPacket(claimNumber, { driverProfile });
     insertClaim({
       id: randomUUID(),
       claimNumber: packet.claimNumber,
@@ -115,16 +116,17 @@ async function main() {
       incidentLocation: packet.incidentLocation,
       driverName: packet.driverName,
       vehicleUnit: packet.vehicleUnit,
-      disposition: packet.disposition,
-      defensePacket: packet,
+      dataCompleteness: packet.dataCompleteness.status,
+      incidentPacket: packet,
     });
-    console.log(`  ✓ ${scenarioId} seeded — ${packet.disposition}`);
+    console.log(`  ✓ ${claimNumber} seeded (${driverProfile}) — data: ${packet.dataCompleteness.status}`);
     claimsSeeded++;
   }
 
   // Print checklist
   const allSubmissions = db.prepare("SELECT COUNT(*) as n FROM submissions").get() as { n: number };
-  const allClaims = db.prepare("SELECT COUNT(*) as n FROM claims").get() as { n: number };
+  const claimsDb = getClaimsDb();
+  const allClaims = claimsDb.prepare("SELECT COUNT(*) as n FROM claims").get() as { n: number };
 
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -138,14 +140,15 @@ Demo flow:
   2. /portfolio ........... Portfolio view — all scored fleets
   3. /underwriting/new .... New submission — pick a hero fleet
   4. /underwriting/[id] ... Risk report — Export PDF
-  5. /claims .............. Claims Intelligence dashboard
-  6. /claims/[id] ......... Defense packet — Export PDF
-  7. /roi ................. ROI calculator
-  8. /tech ................ Architecture overview
+  5. /dispatch ............ Fleet operations — real HOS, safety events
+  6. /claims .............. Claims Intelligence dashboard
+  7. /claims/[id] ......... Defense packet — Export PDF
+  8. /roi ................. ROI calculator (grounded in live fleet data)
+  9. /tech ................ Architecture overview
 
-Key scenarios:
-  KS-2026-0142 → STRONG DEFENSE (exonerating — driver compliant)
-  KS-2026-0157 → CONSIDER SETTLEMENT (inculpating — fatigue + brake defects)
+Demo claims (live Catena API data):
+  KS-2026-0142 → Real driver, fewest safety events (lower-risk profile)
+  KS-2026-0157 → Real driver, most safety events (higher-risk profile)
 
 Good luck!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

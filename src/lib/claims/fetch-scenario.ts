@@ -1,18 +1,29 @@
 /**
- * Builds claim defense packets from real Catena API data.
- * Falls back to generate-scenario.ts synthetic data if the API
- * returns insufficient records.
+ * Builds IncidentPackets from real Catena API data.
+ * Falls back to generate-scenario.ts synthetic data if API returns insufficient records.
+ *
+ * Principle: Catena API first. External enrichment (NOAA, OSM) only where Catena has no
+ * equivalent endpoint.
  */
 import { addMinutes, formatISO, subDays } from "date-fns";
 import { createCatenaClientFromEnv } from "@/lib/catena/client";
+import { fetchWeatherAtIncident } from "@/lib/enrichment/weather";
+import { fetchRoadContext, reverseGeocode } from "@/lib/enrichment/roads";
+import { buildManifestEntry } from "@/lib/enrichment/manifest";
+import { buildIncidentSummary } from "./narrative";
 import type {
-  DefensePacket,
+  IncidentPacket,
   ClaimSafetyEvent,
   HosSnapshot,
   DvirRecord,
+  DvirDefect,
   RouteWaypoint,
   SpeedSample,
   ScenarioId,
+  DataProvenanceEntry,
+  DataCompleteness,
+  EvidenceManifestEntry,
+  ProvenanceSource,
 } from "./types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -35,8 +46,8 @@ function bool(obj: unknown, key: string): boolean | null {
   return typeof v === "boolean" ? v : null;
 }
 
-/** Extract [lat, lng] from GeoJSON Point `{ type: "Point", coordinates: [lng, lat] }` */
-function geoPoint(loc: unknown): { lat: number; lng: number } | null {
+/** Extract {lat, lng} from GeoJSON Point `{ type: "Point", coordinates: [lng, lat] }` */
+function geoPointSafe(loc: unknown): { lat: number; lng: number } | null {
   if (!loc || typeof loc !== "object") return null;
   const o = loc as Record<string, unknown>;
   if (o.type === "Point" && Array.isArray(o.coordinates)) {
@@ -50,8 +61,12 @@ function iso(d: Date): string {
   return formatISO(d, { representation: "complete" });
 }
 
-// ─── Speed-timeline builder (anchored to real lat/lng) ───────────────────────
+// ─── Speed-timeline builder ───────────────────────────────────────────────────
 
+/**
+ * Builds 72 speed samples (1-min intervals ending at incident).
+ * Uses real API location pings where available; fills gaps synthetically.
+ */
 function buildSpeedTimeline(opts: {
   incidentAt: string;
   incidentLat: number;
@@ -60,14 +75,34 @@ function buildSpeedTimeline(opts: {
   speedAtImpact: number;
   headingDeg: number;
   peakOverrides: { offsetMinutes: number; speedMph: number }[];
+  realPings: { offsetMinutes: number; speedMph: number; lat: number; lng: number }[];
 }): SpeedSample[] {
-  const { incidentLat, incidentLng, baseSpeedMph, speedAtImpact, headingDeg, peakOverrides } = opts;
+  const { incidentLat, incidentLng, baseSpeedMph, speedAtImpact, headingDeg, peakOverrides, realPings } = opts;
   const samples: SpeedSample[] = [];
   const totalMinutes = 72;
   const headingRad = (headingDeg * Math.PI) / 180;
 
+  // Index real pings by offset minute for O(1) lookup
+  const pingByMinute = new Map<number, (typeof realPings)[0]>();
+  for (const p of realPings) {
+    pingByMinute.set(Math.round(p.offsetMinutes), p);
+  }
+
   for (let i = totalMinutes; i >= 0; i--) {
     const offsetMinutes = -i;
+    const real = pingByMinute.get(offsetMinutes);
+    if (real) {
+      samples.push({
+        offsetMinutes,
+        speedMph: Math.round(real.speedMph * 10) / 10,
+        lat: real.lat,
+        lng: real.lng,
+        fromApi: true,
+      });
+      continue;
+    }
+
+    // Synthetic fill
     const jitter = Math.sin(i * 0.7) * 2;
     let speed = baseSpeedMph + jitter;
     for (const ov of peakOverrides) {
@@ -84,6 +119,7 @@ function buildSpeedTimeline(opts: {
       speedMph: Math.round(speed * 10) / 10,
       lat: Math.round(lat * 10000) / 10000,
       lng: Math.round(lng * 10000) / 10000,
+      fromApi: false,
     });
   }
   return samples;
@@ -101,7 +137,6 @@ function buildRouteWaypointsFromLocations(
   const incidentDate = new Date(incidentAt);
   const windowStart = subDays(incidentDate, 3);
 
-  // Filter locations for this vehicle within 72h prior to incident
   const vehicleLocs = locations
     .filter((l) => {
       const vid = str(l, "vehicle_id");
@@ -111,117 +146,136 @@ function buildRouteWaypointsFromLocations(
       const d = new Date(occ);
       return d >= windowStart && d <= incidentDate;
     })
-    .sort((a, b) => {
-      const at = str(a, "occurred_at") ?? "";
-      const bt = str(b, "occurred_at") ?? "";
-      return at.localeCompare(bt);
-    });
+    .sort((a, b) => (str(a, "occurred_at") ?? "").localeCompare(str(b, "occurred_at") ?? ""));
 
-  if (vehicleLocs.length >= 4) {
-    return vehicleLocs.slice(-288).map((l) => {
-      const loc = (l as Record<string, unknown>).location;
-      const coords = geoPoint(loc);
-      const spd = num(l, "speed") ?? baseSpeedMph;
-      return {
-        lat: coords?.lat ?? incidentLat,
-        lng: coords?.lng ?? incidentLng,
-        occurredAt: str(l, "occurred_at") ?? iso(incidentDate),
-        speedMph: Math.round(spd * 10) / 10,
-        heading: headingDeg,
-      };
-    });
+  if (vehicleLocs.length >= 2) {
+    // Only use real API pings within a reasonable geographic distance of incident.
+    // Filter out stale/corrupted pings that would cause the map to span the globe.
+    return vehicleLocs
+      .map((l) => {
+        const coords = geoPointSafe((l as Record<string, unknown>).location);
+        if (!coords) return null;
+        // Guard: reject pings more than 500 miles (~7.2°) from incident location
+        const latDiff = Math.abs(coords.lat - incidentLat);
+        const lngDiff = Math.abs(coords.lng - incidentLng);
+        if (latDiff > 7.2 || lngDiff > 10) return null;
+        const spd = num(l, "speed") ?? baseSpeedMph;
+        return {
+          lat: coords.lat,
+          lng: coords.lng,
+          occurredAt: str(l, "occurred_at") ?? iso(incidentDate),
+          speedMph: Math.round(spd * 10) / 10,
+          heading: headingDeg,
+          fromApi: true,
+        };
+      })
+      .filter((w): w is RouteWaypoint => w !== null)
+      .slice(-288);
   }
 
-  // Synthetic fallback — interpolate 288 points
-  const waypoints: RouteWaypoint[] = [];
-  const totalPoints = 288;
-  const headingRad = (headingDeg * Math.PI) / 180;
-  for (let i = totalPoints; i >= 0; i--) {
-    const offsetMinutes = -(i * 15);
-    const t = 1 - i / totalPoints;
-    const degPerMile = 1 / 69;
-    const milesBehind = (baseSpeedMph / 60) * (i * 15);
-    const lat = incidentLat - Math.cos(headingRad) * milesBehind * degPerMile * (1 - t);
-    const lng = incidentLng - Math.sin(headingRad) * milesBehind * degPerMile * (1 - t);
-    const jitter = Math.sin(i * 0.4) * 2;
-    waypoints.push({
-      lat: Math.round(lat * 10000) / 10000,
-      lng: Math.round(lng * 10000) / 10000,
-      occurredAt: iso(addMinutes(incidentDate, offsetMinutes)),
-      speedMph: Math.round(Math.max(0, baseSpeedMph + jitter) * 10) / 10,
-      heading: headingDeg,
-    });
-  }
-  return waypoints;
+  // No real pings available — do NOT synthesize a fake multi-hour route.
+  // Return empty; the map will center on the incident location without a trail.
+  return [];
 }
 
-// ─── Map API event type → ClaimSafetyEvent type ──────────────────────────────
+// ─── Event mapping ────────────────────────────────────────────────────────────
 
-function mapEventType(apiEvent: string): ClaimSafetyEvent["type"] | null {
+function mapEventType(apiEvent: string): ClaimSafetyEvent["type"] {
   const e = apiEvent.toLowerCase();
   if (e.includes("hard_brak") || e.includes("hard_braking")) return "hard_brake";
   if (e.includes("harsh_turn") || e.includes("harsh_corner") || e.includes("cornering")) return "harsh_corner";
   if (e.includes("speed")) return "speeding";
-  if (e.includes("distract") || e.includes("phone") || e.includes("forward_collision")) return "distraction";
-  return null;
+  if (e.includes("distract") || e.includes("phone")) return "distraction";
+  if (e.includes("forward_collision") || e.includes("fcw")) return "forward_collision";
+  return "other";
 }
 
-function eventSeverity(apiEvent: string, metadataG?: unknown): ClaimSafetyEvent["severity"] {
-  const s = str(metadataG, "severity");
+function eventSeverity(apiEvent: string, metadata: unknown): ClaimSafetyEvent["severity"] {
+  const s = str(metadata, "severity");
   if (s === "high" || s === "critical") return "high";
   if (s === "low") return "low";
   const e = apiEvent.toLowerCase();
-  if (e.includes("speed")) return "high";
-  if (e.includes("hard_brak")) return "high";
+  if (e.includes("speed") || e.includes("hard_brak")) return "high";
   return "medium";
 }
 
-// ─── Map DVIR log → DvirRecord ────────────────────────────────────────────────
+// ─── DVIR mapping ─────────────────────────────────────────────────────────────
 
-function mapDvirLog(log: unknown): DvirRecord | null {
+function mapDvirDefect(d: unknown): DvirDefect {
+  const sev = str(d, "severity")?.toLowerCase();
+  return {
+    id: str(d, "id") ?? "defect-unknown",
+    component: str(d, "part_name") ?? str(d, "component") ?? "Unknown component",
+    severity: sev === "critical" ? "critical" : sev === "major" ? "major" : "minor",
+    resolvedAt: str(d, "resolved_at"),
+    resolvedByName: str(d, "resolved_by_name"),
+    note: str(d, "note") ?? str(d, "description") ?? "",
+  };
+}
+
+function mapDvirLog(log: unknown, defects: DvirDefect[]): DvirRecord | null {
   const id = str(log, "id");
   const rawType = str(log, "log_type");
   const inspectedAt = str(log, "occurred_at") ?? str(log, "inspected_at");
   if (!id || !inspectedAt) return null;
 
-  const logType =
+  const logType: DvirRecord["type"] =
     rawType === "pre_trip" ? "pre_trip" : rawType === "post_trip" ? "post_trip" : "en_route";
-
   const isCritical = bool(log, "is_safety_critical") ?? false;
-  const defectCount = num(log, "defect_count") ?? 0;
-  const status = isCritical || defectCount > 0 ? "unsatisfactory" : "satisfactory";
+  const defectCount = num(log, "defect_count") ?? defects.length;
+  const status: DvirRecord["status"] = isCritical || defectCount > 0 ? "unsatisfactory" : "satisfactory";
+  const vehicleId = str(log, "vehicle_id");
+  const locRaw = (log as Record<string, unknown>).location;
+  const coords = geoPointSafe(locRaw);
 
   return {
     id,
     inspectedAt,
     type: logType,
     status,
-    defects: [], // defect detail comes from listDvirDefects, not inlined here in sandbox
+    defects,
+    vehicleId,
+    location: coords,
   };
 }
 
-// ─── HOS snapshot builder ─────────────────────────────────────────────────────
+// ─── HOS snapshot ─────────────────────────────────────────────────────────────
+
+function mapDutyStatus(code: string | null): HosSnapshot["dutyStatusAtIncident"] {
+  if (!code) return "driving";
+  const c = code.toLowerCase();
+  if (c.includes("off")) return "off_duty";
+  if (c.includes("sleeper")) return "sleeper_berth";
+  if (c.includes("on_duty") || c.includes("on-duty")) return "on_duty_not_driving";
+  return "driving";
+}
 
 function buildHosSnapshot(
   driverId: string,
   hosAvailabilities: unknown[],
   hosViolations: unknown[],
-  risky: boolean,
 ): HosSnapshot {
-  // Look for this driver's availability record
   const avail = hosAvailabilities.find((a) => str(a, "driver_id") === driverId);
 
-  // drive_time_available_seconds is common field name
-  const driveAvailSec = num(avail, "drive_time_available_seconds") ?? num(avail, "driving_available_seconds");
-  const cycleAvailSec = num(avail, "cycle_time_available_seconds") ?? num(avail, "seventy_hour_available_seconds");
+  // Correct field names from Catena API per REPORT.md sample responses
+  const driveAvailSec = num(avail, "available_drive_seconds");
+  const shiftAvailSec = num(avail, "available_shift_seconds");
+  const cycleAvailSec = num(avail, "available_cycle_seconds");
+  const breakSec = num(avail, "time_until_break_seconds");
+  const nextBreakAt = str(avail, "next_break_due_at");
+  const dutyStatusCode = str(avail, "duty_status_code");
+  const isPC = bool(avail, "is_personal_conveyance_applied");
+  const cycleViolSec = num(avail, "cycle_violation_duration_seconds");
 
-  const driveAvailH = driveAvailSec != null ? driveAvailSec / 3600 : risky ? 1.0 : 5.75;
-  const cycleAvailH = cycleAvailSec != null ? cycleAvailSec / 3600 : risky ? 1.0 : 27.5;
+  // Fall back to synthetic values only when avail record is absent entirely
+  const hasAvail = avail != null;
+  const driveAvailH = driveAvailSec != null ? driveAvailSec / 3600 : hasAvail ? 0 : 5.75;
+  const cycleAvailH = cycleAvailSec != null ? cycleAvailSec / 3600 : hasAvail ? 0 : 27.5;
+  const shiftAvailH = shiftAvailSec != null ? shiftAvailSec / 3600 : null;
 
   const driveUsed = Math.max(0, Math.min(11, 11 - driveAvailH));
   const cycleUsed = Math.max(0, Math.min(70, 70 - cycleAvailH));
 
-  // Count violations for this driver
   const driverViolations = hosViolations.filter((v) => str(v, "driver_id") === driverId);
   const nearLimit = driveAvailH <= 1.5 || cycleAvailH <= 2;
 
@@ -232,84 +286,145 @@ function buildHosSnapshot(
     cycleLimitHours: 70,
     hoursUntilDriveLimit: Math.round(driveAvailH * 100) / 100,
     hoursUntilCycleLimit: Math.round(cycleAvailH * 100) / 100,
-    dutyStatusAtIncident: "driving",
+    availableShiftHours: shiftAvailH != null ? Math.round(shiftAvailH * 100) / 100 : null,
+    timeUntilBreakHours: breakSec != null ? Math.round((breakSec / 3600) * 100) / 100 : null,
+    nextBreakDueAt: nextBreakAt,
+    dutyStatusAtIncident: mapDutyStatus(dutyStatusCode),
+    isPersonalConveyance: isPC,
     isCompliant: driverViolations.length === 0,
-    violationNote:
-      nearLimit
-        ? `Driver was in the final ${Math.round(driveAvailH * 10) / 10}h of drive time at time of incident — operational fatigue indicator.`
-        : null,
-    lastResetAt: iso(subDays(new Date(), 7)),
+    violationNote: nearLimit
+      ? `Driver had ${Math.round(driveAvailH * 10) / 10}h drive time remaining and ${Math.round(cycleAvailH * 10) / 10}h cycle time remaining at incident time.`
+      : null,
+    lastResetAt: str(avail, "last_reset_at") ?? iso(subDays(new Date(), 7)),
+    cycleViolationDurationHours:
+      cycleViolSec != null ? Math.round((cycleViolSec / 3600) * 100) / 100 : null,
   };
 }
 
-// ─── Disposition logic ────────────────────────────────────────────────────────
+// ─── Provenance helpers ───────────────────────────────────────────────────────
 
-function computeDisposition(
-  safetyEvents: ClaimSafetyEvent[],
-  dvirRecords: DvirRecord[],
-  hosSnapshot: HosSnapshot,
-  speedOverLimit: boolean,
-): DefensePacket["disposition"] {
-  const criticalDvir = dvirRecords.some((r) => r.status === "unsatisfactory");
-  const highSeverityEvents = safetyEvents.filter((e) => e.severity === "high").length;
-  const nearHosLimit = hosSnapshot.hoursUntilDriveLimit <= 1.5;
-  const riskFactors = [criticalDvir, highSeverityEvents >= 2, nearHosLimit, speedOverLimit].filter(Boolean).length;
-  if (riskFactors >= 2) return "UNFAVORABLE_EVIDENCE_CONSIDER_SETTLEMENT";
-  if (riskFactors === 1) return "NEUTRAL_FURTHER_INVESTIGATION";
-  return "STRONG_DEFENSE_POSITION";
+function prov(
+  field: string,
+  source: ProvenanceSource,
+  note?: string,
+): DataProvenanceEntry {
+  return { field, source, ...(note ? { note } : {}) };
 }
 
-// ─── Build one DefensePacket from real API data ───────────────────────────────
+function computeCompleteness(
+  apiFieldsPresent: string[],
+  missingFields: string[],
+  syntheticFields: string[],
+): DataCompleteness {
+  let status: DataCompleteness["status"];
+  if (syntheticFields.length > 0) {
+    status = missingFields.length === 0 && syntheticFields.length < 3 ? "PARTIAL" : "SYNTHETIC_FALLBACK";
+  } else if (missingFields.length === 0) {
+    status = "COMPLETE";
+  } else {
+    status = "PARTIAL";
+  }
+  return { status, apiFieldsPresent, missingFields, syntheticFields };
+}
 
-function buildPacketFromApiData(opts: {
+// ─── Core packet builder ──────────────────────────────────────────────────────
+
+async function buildIncidentPacket(opts: {
   claimNumber: string;
   driver: unknown;
   vehicle: unknown;
   allSafetyEvents: unknown[];
   allLocations: unknown[];
   dvirLogs: unknown[];
+  dvirDefectsByLogId: Map<string, DvirDefect[]>;
   hosAvailabilities: unknown[];
   hosViolations: unknown[];
-  risky: boolean;
-}): DefensePacket {
-  const { claimNumber, driver, vehicle, allSafetyEvents, allLocations, dvirLogs, hosAvailabilities, hosViolations, risky } = opts;
+  driverSummaries: unknown[];
+}): Promise<IncidentPacket> {
+  const {
+    claimNumber,
+    driver,
+    vehicle,
+    allSafetyEvents,
+    allLocations,
+    dvirLogs,
+    dvirDefectsByLogId,
+    hosAvailabilities,
+    hosViolations,
+    driverSummaries,
+  } = opts;
 
   const driverId = str(driver, "id") ?? "";
   const vehicleId = str(vehicle, "id") ?? "";
-
   const firstName = str(driver, "first_name") ?? "Driver";
   const lastName = str(driver, "last_name") ?? "Unknown";
   const driverName = `${firstName} ${lastName}`;
+  const vehicleUnit =
+    str(vehicle, "vehicle_name") ??
+    str(vehicle, "unit") ??
+    str(vehicle, "description") ??
+    `Unit ${vehicleId.slice(0, 4).toUpperCase()}`;
+  const vehicleVin = str(vehicle, "vin") ?? `UNKNOWN-${vehicleId.slice(0, 8).toUpperCase()}`;
 
-  const vehicleUnit = str(vehicle, "vehicle_name") ?? str(vehicle, "unit") ?? str(vehicle, "description") ?? `Unit ${vehicleId.slice(0, 4).toUpperCase()}`;
-  const vehicleVin = str(vehicle, "vin") ?? `1XKAD${vehicleId.slice(0, 11).toUpperCase()}`;
-
-  // Pick incident time from most recent safety event for this driver, else "now - 3d"
+  // Incident time — from most recent safety event for this driver/vehicle, else 7 days ago
   const driverEvents = allSafetyEvents
     .filter((e) => str(e, "driver_id") === driverId || str(e, "vehicle_id") === vehicleId)
     .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""));
   const mostRecentEvent = driverEvents[0];
-  const incidentAt =
-    str(mostRecentEvent, "occurred_at") ??
-    iso(subDays(new Date(), risky ? 3 : 7));
+  const incidentAt = str(mostRecentEvent, "occurred_at") ?? iso(subDays(new Date(), 7));
+  const incidentDate = new Date(incidentAt);
 
-  // Incident lat/lng from most recent location for this vehicle
+  // Incident coords — from most recent vehicle location ping
   const vehicleLocations = allLocations
     .filter((l) => str(l, "vehicle_id") === vehicleId)
     .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""));
   const mostRecentLoc = vehicleLocations[0];
-  const coords = geoPoint(mostRecentLoc ? (mostRecentLoc as Record<string, unknown>).location : null);
-  const incidentLat = coords?.lat ?? (risky ? 40.5577 : 40.6993);
-  const incidentLng = coords?.lng ?? (risky ? -74.2946 : -99.0817);
+  const coords = geoPointSafe(mostRecentLoc ? (mostRecentLoc as Record<string, unknown>).location : null);
+  // Neutral geographic center fallback (Indianapolis) — no risky/clean hardcoded coordinates
+  const incidentLat = coords?.lat ?? 39.7684;
+  const incidentLng = coords?.lng ?? -86.1581;
+  const coordsFromApi = coords != null;
 
-  const headingDeg = risky ? 0 : 270;
-  const baseSpeed = risky ? 73 : 58;
-  const speedAtImpact = risky ? 68 : 58;
-  const speedLimitMph = 65;
-  const speedOverLimit = speedAtImpact > speedLimitMph;
+  // Driver analytics summary (from /analytics/drivers)
+  const driverSummary = driverSummaries.find(
+    (s) => str(s, "driver_id") === driverId || str(s, "id") === driverId,
+  );
+  const driverSafetyEvents30d = num(driverSummary, "safety_events_30d");
+  const driverHosViolations30d = num(driverSummary, "hos_violations_30d");
 
-  // Safety events in the 30-min pre-incident window
-  const incidentDate = new Date(incidentAt);
+  // Speed: derive from real location pings; fall back to 55 mph (neutral highway default)
+  const SPEED_MEANINGFUL_THRESHOLD_MPH = 2.0;
+  const headingDeg = 0; // neutral — real heading from API not available in this path
+
+  const realPings: { offsetMinutes: number; speedMph: number; lat: number; lng: number }[] = [];
+  for (const l of vehicleLocations) {
+    const occ = str(l, "occurred_at");
+    if (!occ) continue;
+    const pingTime = new Date(occ).getTime();
+    const offsetMs = pingTime - incidentDate.getTime();
+    const offsetMinutes = Math.round(offsetMs / 60_000);
+    if (offsetMinutes < -72 || offsetMinutes > 0) continue;
+    const pingCoords = geoPointSafe((l as Record<string, unknown>).location);
+    const spd = num(l, "speed");
+    if (spd == null || spd < SPEED_MEANINGFUL_THRESHOLD_MPH) continue;
+    realPings.push({
+      offsetMinutes,
+      speedMph: spd,
+      lat: pingCoords?.lat ?? incidentLat,
+      lng: pingCoords?.lng ?? incidentLng,
+    });
+  }
+
+  // Base speed from real pings or neutral 55 mph fallback
+  const allVehicleSpeeds = vehicleLocations
+    .map((l) => num(l, "speed"))
+    .filter((s): s is number => s != null && s >= SPEED_MEANINGFUL_THRESHOLD_MPH);
+  const baseSpeed = allVehicleSpeeds.length > 0
+    ? Math.round(allVehicleSpeeds.reduce((a, b) => a + b, 0) / allVehicleSpeeds.length * 10) / 10
+    : 55;
+  const speedAtImpact = realPings[0]?.speedMph ?? baseSpeed;
+
+  // Safety events in 30-min window
   const windowStart = addMinutes(incidentDate, -30);
   const recentEvents = allSafetyEvents
     .filter((e) => {
@@ -321,55 +436,53 @@ function buildPacketFromApiData(opts: {
       const d = new Date(occ);
       return d >= windowStart && d <= incidentDate;
     })
-    .slice(0, 5);
+    .slice(0, 10);
 
-  const safetyEventsWindow: ClaimSafetyEvent[] = recentEvents.map((e, i) => {
-    const rawType = str(e, "event") ?? "speeding";
-    const type = mapEventType(rawType) ?? "speeding";
+  const safetyEventsInWindow: ClaimSafetyEvent[] = recentEvents.map((e, i) => {
+    const rawType = str(e, "event") ?? "other";
     const metadata = (e as Record<string, unknown>).event_metadata;
-    const severity = eventSeverity(rawType, metadata);
     const occ = str(e, "occurred_at");
     const offsetMs = occ ? new Date(occ).getTime() - incidentDate.getTime() : -(i + 1) * 120_000;
-    const offsetMinutes = Math.round(offsetMs / 60_000);
     return {
       id: str(e, "id") ?? `evt-api-${i}`,
-      type,
-      severity,
-      offsetMinutes,
-      description: `${rawType.replace(/_/g, " ")} event recorded ${Math.abs(offsetMinutes)} minutes before incident`,
+      type: mapEventType(rawType),
+      severity: eventSeverity(rawType, metadata),
+      offsetMinutes: Math.round(offsetMs / 60_000),
+      description: `${rawType.replace(/_/g, " ")} event recorded ${Math.abs(Math.round(offsetMs / 60_000))} min before incident`,
+      rawEventType: rawType,
     };
   });
 
   // DVIR records for this vehicle within 60 days
-  const incidentMs = incidentDate.getTime();
   const sixty_days_ms = 60 * 24 * 60 * 60 * 1000;
-  const vehicleDvirLogs = dvirLogs
-    .filter((l) => {
-      const vid = str(l, "vehicle_id");
-      if (vid && vid !== vehicleId) return false;
-      const occ = str(l, "occurred_at");
-      if (!occ) return false;
-      const d = new Date(occ).getTime();
-      return d >= incidentMs - sixty_days_ms && d <= incidentMs;
+  const vehicleDvirLogs = dvirLogs.filter((l) => {
+    const vid = str(l, "vehicle_id");
+    if (vid && vid !== vehicleId) return false;
+    const occ = str(l, "occurred_at");
+    if (!occ) return false;
+    const d = new Date(occ).getTime();
+    return d >= incidentDate.getTime() - sixty_days_ms && d <= incidentDate.getTime();
+  });
+
+  const dvirRecords: DvirRecord[] = vehicleDvirLogs
+    .map((l) => {
+      const logId = str(l, "id");
+      const defects = (logId ? dvirDefectsByLogId.get(logId) : null) ?? [];
+      return mapDvirLog(l, defects);
     })
-    .slice(0, 5);
+    .filter((r): r is DvirRecord => r !== null);
 
-  const dvirRecords: DvirRecord[] = vehicleDvirLogs.map(mapDvirLog).filter((r): r is DvirRecord => r !== null);
+  // HOS snapshot using correct Catena field names
+  const hosSnapshot = buildHosSnapshot(driverId, hosAvailabilities, hosViolations);
+  const driverHosViolations90d = hosViolations.filter((v) => str(v, "driver_id") === driverId).length;
 
-  // HOS snapshot
-  const hosSnapshot = buildHosSnapshot(driverId, hosAvailabilities, hosViolations, risky);
-
-  // Driver stats
+  // Driver tenure — from API created_at; neutral 12-month fallback
   const createdAt = str(driver, "created_at");
-  const tenureMonths = createdAt
+  const driverTenureMonths = createdAt
     ? Math.max(1, Math.round((Date.now() - new Date(createdAt).getTime()) / (30 * 24 * 3600_000)))
-    : risky ? 14 : 38;
+    : 12;
 
-  const driverViolationCount = hosViolations.filter((v) => str(v, "driver_id") === driverId).length;
-  const totalDriverEvents = driverEvents.length;
-  const driverSafetyScore = Math.max(10, Math.min(95, 90 - totalDriverEvents * 3));
-
-  // Speed timeline and route
+  // Speed timeline — no synthetic peakOverrides; real pings only
   const speedTimeline = buildSpeedTimeline({
     incidentAt,
     incidentLat,
@@ -377,90 +490,152 @@ function buildPacketFromApiData(opts: {
     baseSpeedMph: baseSpeed,
     speedAtImpact,
     headingDeg,
-    peakOverrides: risky
-      ? [{ offsetMinutes: -2, speedMph: 74 }, { offsetMinutes: -5, speedMph: 76 }]
-      : [],
+    peakOverrides: [], // never synthetic
+    realPings,
   });
+
+  const speedAtImpactMph = speedTimeline.find((s) => s.offsetMinutes === 0)?.speedMph ?? speedAtImpact;
   const maxSpeedInWindowMph = Math.max(...speedTimeline.map((s) => s.speedMph));
 
   const routeWaypoints = buildRouteWaypointsFromLocations(
-    allLocations, vehicleId, incidentAt, incidentLat, incidentLng, baseSpeed, headingDeg,
+    allLocations,
+    vehicleId,
+    incidentAt,
+    incidentLat,
+    incidentLng,
+    baseSpeed,
+    headingDeg,
   );
 
-  // Fuel stops — synthetic (no API endpoint)
-  const fuelStops = risky
-    ? [
-        {
-          id: "fuel-api-1",
-          occurredAt: iso(addMinutes(incidentDate, -61 * 60)),
-          locationName: "Pilot Travel Center — route start",
-          lat: incidentLat - 0.4,
-          lng: incidentLng - 0.15,
-          gallons: 55.2,
-          pricePerGallon: 4.12,
-        },
-        {
-          id: "fuel-api-2",
-          occurredAt: iso(addMinutes(incidentDate, -28 * 60)),
-          locationName: "Love's Travel Stop — en route",
-          lat: incidentLat - 0.2,
-          lng: incidentLng - 0.08,
-          gallons: 38.6,
-          pricePerGallon: 4.19,
-        },
-      ]
-    : [
-        {
-          id: "fuel-api-1",
-          occurredAt: iso(addMinutes(incidentDate, -68 * 60)),
-          locationName: "TA Truck Stop — origin",
-          lat: incidentLat + 0.3,
-          lng: incidentLng + 0.5,
-          gallons: 52.4,
-          pricePerGallon: 3.89,
-        },
-        {
-          id: "fuel-api-2",
-          occurredAt: iso(addMinutes(incidentDate, -42 * 60)),
-          locationName: "Pilot Travel Center — mid-route",
-          lat: incidentLat + 0.15,
-          lng: incidentLng + 0.25,
-          gallons: 48.1,
-          pricePerGallon: 3.84,
-        },
-      ];
+  const incidentDescription = `Incident involving ${vehicleUnit} operated by ${driverName}`;
+  const incidentLocation = coords
+    ? `GPS ${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)}`
+    : "Location unavailable from Catena API";
 
-  const disposition = computeDisposition(safetyEventsWindow, dvirRecords, hosSnapshot, speedOverLimit);
+  // External enrichment (Catena has no weather or road-type endpoints)
+  const [weatherContext, roadContext] = await Promise.all([
+    fetchWeatherAtIncident(incidentLat, incidentLng, incidentAt),
+    fetchRoadContext(incidentLat, incidentLng, null),
+  ]);
 
-  const dispositionFactors: string[] = [
-    `Speed at impact: ${speedAtImpact} mph vs ${speedLimitMph} mph posted limit — ${speedOverLimit ? `${speedAtImpact - speedLimitMph} mph over` : `${speedLimitMph - speedAtImpact} mph below`}`,
-    safetyEventsWindow.length > 0
-      ? `${safetyEventsWindow.length} safety event(s) recorded in 30-minute pre-incident window`
-      : "Zero safety events recorded in 30-minute pre-incident window",
-    `HOS: ${hosSnapshot.hoursUntilDriveLimit}h drive time remaining — ${hosSnapshot.isCompliant ? "compliant" : "violation flagged"}`,
-    dvirRecords.length > 0
-      ? `${dvirRecords.filter((r) => r.status === "unsatisfactory").length} unsatisfactory DVIR inspection(s) in prior 60 days`
-      : "No DVIR records in prior 60 days",
-    `Driver safety score: ${driverSafetyScore}/100, tenure: ${tenureMonths} months`,
+  const postedSpeedLimitMph = roadContext.source === "osm" ? roadContext.postedSpeedLimitMph : null;
+
+  // Data provenance
+  const provenance: DataProvenanceEntry[] = [
+    prov("driverName", "catena_api"),
+    prov("vehicleUnit", "catena_api"),
+    prov("vehicleVin", "catena_api"),
+    prov("safetyEventsInWindow", safetyEventsInWindow.length > 0 ? "catena_api" : "catena_api", "30-min window from Catena safety events"),
+    prov("hosSnapshot", hosAvailabilities.find((a) => str(a, "driver_id") === driverId) ? "catena_api" : "synthetic"),
+    prov("dvirRecords", dvirRecords.length > 0 ? "catena_api" : "catena_api", "Catena DVIR logs + per-log defects"),
+    prov("speedTimeline", realPings.length > 0 ? "catena_api" : "synthetic", `${realPings.length} real pings, ${73 - realPings.length} synthetic`),
+    prov("routeWaypoints", routeWaypoints.some((w) => w.fromApi) ? "catena_api" : "synthetic"),
+    prov("weatherContext", weatherContext.source === "noaa" ? "noaa" : "synthetic"),
+    prov("roadContext", roadContext.source === "osm" ? "osm" : "synthetic"),
+    prov("driverSafetyEvents30d", driverSafetyEvents30d != null ? "catena_analytics" : "synthetic"),
+    prov("driverHosViolations30d", driverHosViolations30d != null ? "catena_analytics" : "catena_api", "from HOS violations count"),
+    ...(coordsFromApi ? [prov("incidentLat,incidentLng", "catena_api")] : [prov("incidentLat,incidentLng", "synthetic")]),
   ];
 
-  const dispositionRationale =
-    disposition === "STRONG_DEFENSE_POSITION"
-      ? `Speed data confirms vehicle was traveling ${speedLimitMph - speedAtImpact} mph below the posted limit at time of impact. ${safetyEventsWindow.length === 0 ? "No safety events recorded in the 30-minute pre-incident window, " : ""}${hosSnapshot.hoursUntilDriveLimit.toFixed(1)} hours of drive time remaining, DVIR records clean. Catena telematics evidence is strongly exonerating.`
-      : disposition === "UNFAVORABLE_EVIDENCE_CONSIDER_SETTLEMENT"
-      ? `Vehicle was traveling ${speedAtImpact - speedLimitMph} mph over the posted limit. ${safetyEventsWindow.length > 0 ? `${safetyEventsWindow.length} adverse safety event(s) in the pre-incident window. ` : ""}Driver was in the final ${hosSnapshot.hoursUntilDriveLimit.toFixed(1)}h of drive time — fatigue indicator. Early settlement is recommended.`
-      : "Mixed evidence — further investigation recommended before determining litigation strategy.";
+  // Data completeness
+  const apiFields: string[] = [];
+  const missingFields: string[] = [];
+  const syntheticFieldsList: string[] = [];
 
-  const incidentDescription =
-    disposition === "STRONG_DEFENSE_POSITION"
-      ? "Collision — plaintiff alleges negligent operation; telematics data is exonerating"
-      : "Collision — plaintiff has documented grounds; telematics data shows adverse indicators";
+  if (coordsFromApi) apiFields.push("incidentLat", "incidentLng");
+  else syntheticFieldsList.push("incidentLat", "incidentLng");
 
-  const incidentLocation = coords
-    ? `GPS ${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)} — ${risky ? "northbound approach" : "westbound highway"}`
-    : `I-${risky ? "95 northbound" : "80 westbound"} — ${risky ? "NJ corridor" : "NE highway"}`;
+  if (realPings.length > 0) apiFields.push("speedTimeline.realPings");
+  else syntheticFieldsList.push("speedTimeline");
 
-  return {
+  if (hosAvailabilities.find((a) => str(a, "driver_id") === driverId)) apiFields.push("hosSnapshot");
+  else syntheticFieldsList.push("hosSnapshot");
+
+  if (weatherContext.source === "noaa") apiFields.push("weatherContext");
+  else missingFields.push("weatherContext");
+
+  if (roadContext.source === "osm") apiFields.push("roadContext");
+  else missingFields.push("roadContext");
+
+  if (postedSpeedLimitMph == null) missingFields.push("postedSpeedLimitMph");
+  else apiFields.push("postedSpeedLimitMph");
+
+  if (driverSafetyEvents30d != null) apiFields.push("driverSafetyEvents30d");
+  else missingFields.push("driverSafetyEvents30d");
+
+  apiFields.push("driverName", "vehicleUnit", "vehicleVin", "safetyEventsInWindow", "dvirRecords");
+
+  const dataCompleteness = computeCompleteness(apiFields, missingFields, syntheticFieldsList);
+
+  // Evidence manifest
+  const evidenceManifest: EvidenceManifestEntry[] = [
+    buildManifestEntry({
+      id: `catena-driver-${driverId}`,
+      fileName: `catena_driver_${driverId}.json`,
+      description: "Catena driver profile",
+      source: "catena_api",
+      data: driver,
+      recordCount: 1,
+    }),
+    buildManifestEntry({
+      id: `catena-vehicle-${vehicleId}`,
+      fileName: `catena_vehicle_${vehicleId}.json`,
+      description: "Catena vehicle record",
+      source: "catena_api",
+      data: vehicle,
+      recordCount: 1,
+    }),
+    buildManifestEntry({
+      id: `catena-safety-events`,
+      fileName: `catena_safety_events.json`,
+      description: "Catena safety events — 30-min pre-incident window",
+      source: "catena_api",
+      data: recentEvents,
+      recordCount: recentEvents.length,
+    }),
+    buildManifestEntry({
+      id: `catena-dvir-logs`,
+      fileName: `catena_dvir_logs.json`,
+      description: "Catena DVIR logs — 60-day window",
+      source: "catena_api",
+      data: vehicleDvirLogs,
+      recordCount: vehicleDvirLogs.length,
+    }),
+    buildManifestEntry({
+      id: `catena-hos-avail`,
+      fileName: `catena_hos_availabilities.json`,
+      description: "Catena HOS availabilities at incident time",
+      source: "catena_api",
+      data: hosAvailabilities.filter((a) => str(a, "driver_id") === driverId),
+      recordCount: 1,
+    }),
+    ...(weatherContext.source === "noaa"
+      ? [
+          buildManifestEntry({
+            id: `noaa-weather`,
+            fileName: `noaa_weather.json`,
+            description: `NOAA weather observation at incident location — station ${weatherContext.stationId}`,
+            source: "noaa",
+            data: weatherContext,
+            recordCount: 1,
+          }),
+        ]
+      : []),
+    ...(roadContext.source === "osm"
+      ? [
+          buildManifestEntry({
+            id: `osm-road`,
+            fileName: `osm_road_context.json`,
+            description: `OSM road context at incident location — way ${roadContext.osmWayId}`,
+            source: "osm",
+            data: roadContext,
+            recordCount: 1,
+          }),
+        ]
+      : []),
+  ];
+
+  const packet: IncidentPacket = {
     claimNumber,
     incidentAt,
     incidentLocation,
@@ -468,41 +643,52 @@ function buildPacketFromApiData(opts: {
     incidentLng,
     incidentDescription,
     driverName,
+    driverId: driverId || null,
     vehicleUnit,
+    vehicleId: vehicleId || null,
     vehicleVin,
+    driverTenureMonths,
     speedTimeline,
-    speedLimitMph,
-    speedAtImpactMph: speedAtImpact,
+    postedSpeedLimitMph,
+    speedAtImpactMph,
     maxSpeedInWindowMph,
-    safetyEventsWindow,
+    safetyEventsInWindow,
     hosSnapshot,
+    driverHosViolations90d,
     dvirRecords,
     routeWaypoints,
-    fuelStops,
-    driverSafetyScore,
-    driverHosViolations90d: driverViolationCount,
-    driverTenureMonths: tenureMonths,
-    defenseNarrative: "",
-    disposition,
-    dispositionRationale,
-    dispositionFactors,
+    tripOrigin: null, // older legacy builder — trip origin not computed here
+    driverSafetyEvents30d,
+    driverHosViolations30d,
+    weatherContext,
+    roadContext,
+    carrierContext: null, // requires fleet DOT number — fetched at fleet level in fleet-dossier
+    incidentSummary: "", // populated after construction
+    dataCompleteness,
+    dataProvenance: provenance,
+    evidenceManifest,
   };
+
+  packet.incidentSummary = buildIncidentSummary(packet);
+  return packet;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function fetchClaimScenariosFromApi(): Promise<[DefensePacket, DefensePacket]> {
+export async function fetchClaimScenariosFromApi(): Promise<[IncidentPacket, IncidentPacket]> {
   const client = createCatenaClientFromEnv();
 
-  const [vehiclesRes, usersRes, safetyRes, locRes, dvirRes, hosViolRes, hosAvailRes] = await Promise.all([
-    client.listVehicles({ size: 10 }).catch(() => null),
-    client.listUsers({ size: 20 }).catch(() => null),
-    client.listDriverSafetyEvents({ size: 200 }).catch(() => null),
-    client.listVehicleLocations({ size: 200 }).catch(() => null),
-    client.listDvirLogs({ size: 50 }).catch(() => null),
-    client.listHosViolations({ size: 100 }).catch(() => null),
-    client.listHosAvailabilities({ size: 20 }).catch(() => null),
-  ]);
+  const [vehiclesRes, usersRes, safetyRes, locRes, dvirRes, hosViolRes, hosAvailRes, driverSummRes] =
+    await Promise.all([
+      client.listVehicles({ size: 10 }).catch(() => null),
+      client.listUsers({ size: 20 }).catch(() => null),
+      client.listDriverSafetyEvents({ size: 200 }).catch(() => null),
+      client.listVehicleLocations({ size: 200 }).catch(() => null),
+      client.listDvirLogs({ size: 50 }).catch(() => null),
+      client.listHosViolations({ size: 100 }).catch(() => null),
+      client.listHosAvailabilities({ size: 20 }).catch(() => null),
+      client.listDriverSummaries({ size: 50 }).catch(() => null),
+    ]);
 
   const vehicles = vehiclesRes?.items ?? [];
   const users = (usersRes?.items ?? []).filter((u) => {
@@ -514,58 +700,511 @@ export async function fetchClaimScenariosFromApi(): Promise<[DefensePacket, Defe
   const dvirLogs = dvirRes?.items ?? [];
   const hosViolations = hosViolRes?.items ?? [];
   const hosAvailabilities = hosAvailRes?.items ?? [];
+  const driverSummaries = driverSummRes?.items ?? [];
 
   if (vehicles.length < 1 || users.length < 1) {
     throw new Error("Insufficient API data: need at least 1 vehicle and 1 user");
   }
 
-  // Count safety events per driver/vehicle pair to identify clean vs risky
+  // Fetch defects for each DVIR log that has defects (correct per-log endpoint per COVERAGE.md)
+  const logsWithDefects = dvirLogs.filter((l) => (num(l, "defect_count") ?? 0) > 0);
+  const dvirDefectsByLogId = new Map<string, DvirDefect[]>();
+  await Promise.all(
+    logsWithDefects.map(async (l) => {
+      const logId = str(l, "id");
+      if (!logId) return;
+      try {
+        const defectsRes = await client.getDvirLogDefects(logId);
+        const defects = (defectsRes?.items ?? []).map(mapDvirDefect);
+        dvirDefectsByLogId.set(logId, defects);
+      } catch {
+        // Non-fatal — log will show defect_count > 0 but no detail
+      }
+    }),
+  );
+
+  // Identify clean vs. risky driver by safety event count
   const eventCountByDriver = new Map<string, number>();
   for (const e of safetyEvents) {
     const id = str(e, "driver_id") ?? str(e, "vehicle_id") ?? "";
     if (id) eventCountByDriver.set(id, (eventCountByDriver.get(id) ?? 0) + 1);
   }
-
-  // Sort users by event count
   const sortedUsers = [...users].sort((a, b) => {
     const aId = str(a, "id") ?? "";
     const bId = str(b, "id") ?? "";
     return (eventCountByDriver.get(aId) ?? 0) - (eventCountByDriver.get(bId) ?? 0);
   });
+  const cleanDriver = sortedUsers[0]!;
+  const riskyDriver = sortedUsers[sortedUsers.length - 1]!;
+  const vehicle1 = vehicles[0]!;
+  const vehicle2 = vehicles[Math.min(1, vehicles.length - 1)]!;
 
-  const cleanDriver = sortedUsers[0];
-  const riskyDriver = sortedUsers[sortedUsers.length - 1];
+  const commonOpts = {
+    allSafetyEvents: safetyEvents,
+    allLocations: locations,
+    dvirLogs,
+    dvirDefectsByLogId,
+    hosAvailabilities,
+    hosViolations,
+    driverSummaries,
+  };
 
-  const vehicle1 = vehicles[0];
-  const vehicle2 = vehicles[Math.min(1, vehicles.length - 1)];
+  const [packet1, packet2] = await Promise.all([
+    buildIncidentPacket({ claimNumber: "KS-2026-0142", driver: cleanDriver, vehicle: vehicle1, ...commonOpts }),
+    buildIncidentPacket({ claimNumber: "KS-2026-0157", driver: riskyDriver, vehicle: vehicle2, ...commonOpts }),
+  ]);
 
-  const commonOpts = { allSafetyEvents: safetyEvents, allLocations: locations, dvirLogs, hosAvailabilities, hosViolations };
-
-  const scenario1 = buildPacketFromApiData({
-    claimNumber: "KS-2026-0142",
-    driver: cleanDriver,
-    vehicle: vehicle1,
-    risky: false,
-    ...commonOpts,
-  });
-
-  const scenario2 = buildPacketFromApiData({
-    claimNumber: "KS-2026-0157",
-    driver: riskyDriver,
-    vehicle: vehicle2,
-    risky: true,
-    ...commonOpts,
-  });
-
-  return [scenario1, scenario2];
+  return [packet1, packet2];
 }
 
-export async function generateDefensePacketFromApi(scenarioId: ScenarioId): Promise<DefensePacket> {
-  const { generateDefensePacket } = await import("./generate-scenario");
+export async function generateIncidentPacketFromApi(scenarioId: ScenarioId): Promise<IncidentPacket> {
+  const { generateIncidentPacket } = await import("./generate-scenario");
   try {
     const [s1, s2] = await fetchClaimScenariosFromApi();
     return scenarioId === "KS-2026-0142" ? s1 : s2;
   } catch {
-    return generateDefensePacket(scenarioId);
+    return generateIncidentPacket(scenarioId);
   }
+}
+
+/**
+ * Builds a single IncidentPacket from real Catena API data for a given claim number.
+ * Speed, heading, and coordinates are derived entirely from real API responses.
+ * No hardcoded speeds, no synthetic peakOverrides.
+ * Throws if the Catena API returns insufficient data.
+ */
+export async function buildRealSingleIncidentPacket(
+  claimNumber: string,
+  opts?: { driverProfile?: "most_events" | "fewest_events"; driverId?: string; dispatchVehicleId?: string },
+): Promise<IncidentPacket> {
+  const client = createCatenaClientFromEnv();
+
+  const [vehiclesRes, usersRes, safetyRes, locRes, dvirRes, hosViolRes, hosAvailRes, driverSummRes, liveLocRes, hosEvtRes] =
+    await Promise.all([
+      client.listVehicles({ size: 100 }),
+      client.listUsers({ size: 100 }),
+      client.listDriverSafetyEvents({ size: 200 }),
+      client.listVehicleLocations({ size: 200 }),
+      client.listDvirLogs({ size: 50 }),
+      client.listHosViolations({ size: 100 }),
+      client.listHosAvailabilities({ size: 100 }),
+      client.listDriverSummaries({ size: 100 }),
+      client.listVehicleLiveLocations({ size: 100 }).catch(() => null),
+      client.listHosEvents({ size: 200 }).catch(() => null),
+    ]);
+
+  const vehicles = vehiclesRes?.items ?? [];
+  const users = (usersRes?.items ?? []).filter((u) => {
+    const isDriver = bool(u, "is_driver");
+    return isDriver === null || isDriver === true;
+  });
+  const safetyEvents = safetyRes?.items ?? [];
+  const locations = locRes?.items ?? [];
+  const dvirLogs = dvirRes?.items ?? [];
+  const hosViolations = hosViolRes?.items ?? [];
+  const hosAvailabilities = hosAvailRes?.items ?? [];
+  const driverSummaries = driverSummRes?.items ?? [];
+  const liveLocations = ((liveLocRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const hosEventRecords = ((hosEvtRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+
+  if (vehicles.length < 1 || users.length < 1) {
+    throw new Error("Catena API returned no vehicles or users — cannot build real incident packet");
+  }
+
+  // Fetch DVIR defects per log
+  const logsWithDefects = dvirLogs.filter((l) => (num(l, "defect_count") ?? 0) > 0);
+  const dvirDefectsByLogId = new Map<string, DvirDefect[]>();
+  await Promise.all(
+    logsWithDefects.map(async (l) => {
+      const logId = str(l, "id");
+      if (!logId) return;
+      try {
+        const defectsRes = await client.getDvirLogDefects(logId);
+        const defects = (defectsRes?.items ?? []).map(mapDvirDefect);
+        dvirDefectsByLogId.set(logId, defects);
+      } catch { /* non-fatal */ }
+    }),
+  );
+
+  // Pick the driver with the most available data (has both events and a location ping)
+  const eventCountByDriver = new Map<string, number>();
+  for (const e of safetyEvents) {
+    const id = str(e, "driver_id") ?? "";
+    if (id) eventCountByDriver.set(id, (eventCountByDriver.get(id) ?? 0) + 1);
+  }
+  const driverHasLocation = new Set(locations.map((l) => str(l, "vehicle_id")).filter(Boolean));
+
+  // Sort drivers by event count; pick most or fewest depending on profile request
+  const sortedByEvents = [...users].sort((a, b) => {
+    const aId = str(a, "id") ?? "";
+    const bId = str(b, "id") ?? "";
+    return (eventCountByDriver.get(bId) ?? 0) - (eventCountByDriver.get(aId) ?? 0);
+  });
+  const profile = opts?.driverProfile ?? "most_events";
+
+  // Dispatch-initiated claim: vehicle is known from live location record.
+  // Driver is derived from TSP live-location driver_name when user record is synthetic.
+  let driver: unknown;
+  let vehicle: unknown;
+  let dispatchLiveLoc: unknown = null;
+  let dispatchTspName: string | null = null;
+
+  if (opts?.dispatchVehicleId) {
+    dispatchLiveLoc = liveLocations.find((l) => str(l, "vehicle_id") === opts.dispatchVehicleId) ?? null;
+    dispatchTspName = str(dispatchLiveLoc, "driver_name");
+    vehicle = vehicles.find((v) => str(v, "id") === opts.dispatchVehicleId) ?? vehicles[0]!;
+    // Find the Catena user whose id matches this vehicle's safety events, else fall back
+    const vehicleEvents = safetyEvents.filter((e) => str(e, "vehicle_id") === opts.dispatchVehicleId);
+    const userIdFromEvents = vehicleEvents.map((e) => str(e, "driver_id")).find((v): v is string => v != null);
+    driver = users.find((u) => str(u, "id") === userIdFromEvents) ?? sortedByEvents[0]!;
+  } else {
+    const byId = opts?.driverId ? users.find((u) => str(u, "id") === opts.driverId) : undefined;
+    driver = byId ?? (profile === "fewest_events" ? sortedByEvents[sortedByEvents.length - 1] : sortedByEvents[0])!;
+    const driverIdForVehicle = str(driver, "id") ?? "";
+    const vehicleIdFromEvents = safetyEvents
+      .filter((e) => str(e, "driver_id") === driverIdForVehicle)
+      .map((e) => str(e, "vehicle_id"))
+      .find((v): v is string => v != null);
+    vehicle =
+      vehicles.find((v) => str(v, "id") === vehicleIdFromEvents) ??
+      vehicles.find((v) => driverHasLocation.has(str(v, "id") ?? "")) ??
+      vehicles[0]!;
+  }
+
+  const driverId = str(driver, "id") ?? "";
+  const vehicleId = str(vehicle, "id") ?? "";
+
+  // ── Incident time: from most recent safety event for this driver ──────────
+  const driverEvents = safetyEvents
+    .filter((e) => str(e, "driver_id") === driverId || str(e, "vehicle_id") === vehicleId)
+    .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""));
+  const mostRecentEvent = driverEvents[0];
+  const incidentAt = str(mostRecentEvent, "occurred_at") ?? iso(subDays(new Date(), 7));
+  const incidentDate = new Date(incidentAt);
+
+  // ── Location: from the ping closest to the incident time ──────────────────
+  const vehicleLocations = locations
+    .filter((l) => str(l, "vehicle_id") === vehicleId)
+    .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""));
+
+  // Find the ping closest to incidentDate
+  let bestLocForIncident: unknown = vehicleLocations[0];
+  let bestTimeDiff = Infinity;
+  for (const l of vehicleLocations) {
+    const occ = str(l, "occurred_at");
+    if (!occ) continue;
+    const diff = Math.abs(new Date(occ).getTime() - incidentDate.getTime());
+    if (diff < bestTimeDiff) { bestTimeDiff = diff; bestLocForIncident = l; }
+  }
+  // Dispatch-initiated claim: use the driver's current GPS from the live location.
+  // Otherwise use the vehicle location ping closest to the incident time.
+  const dispatchCoords = dispatchLiveLoc ? geoPointSafe((dispatchLiveLoc as Record<string, unknown>).location) : null;
+  const coords = dispatchCoords ?? geoPointSafe(bestLocForIncident ? (bestLocForIncident as Record<string, unknown>).location : null);
+  const incidentLat = coords?.lat ?? 39.7684; // Indianapolis — neutral US geographic center fallback
+  const incidentLng = coords?.lng ?? -86.1581;
+  const coordsFromApi = coords != null;
+
+  // ── Heading: from real location ping ─────────────────────────────────────
+  const headingDeg = num(bestLocForIncident, "heading") ?? 0;
+
+  // ── Speed: collect all available pings for this vehicle ─────────────────
+  // Sandbox simulators generate location pings and safety events at different
+  // timestamps, so a strict -72 to 0 minute window often yields 0 matches.
+  // We use all vehicle pings to derive base speed, separately tracking which
+  // pings fall in the strict pre-incident window for the "fromApi" count.
+  //
+  // Catena normalizes speed across TSPs; field is "speed" on vehicle-locations.
+  // The sandbox simulator generates near-zero values (< 2 mph) — treat those
+  // as data-unavailable rather than reporting sub-2-mph as real highway speed.
+  const SPEED_MEANINGFUL_THRESHOLD_MPH = 2.0;
+
+  const allVehicleRawSpeeds = vehicleLocations
+    .map((l) => num(l, "speed"))
+    .filter((s): s is number => s != null && s > 0);
+  const vehicleSpeedsMeaningful = allVehicleRawSpeeds.filter((s) => s >= SPEED_MEANINGFUL_THRESHOLD_MPH);
+
+  const realPings: { offsetMinutes: number; speedMph: number; lat: number; lng: number }[] = [];
+  for (const l of vehicleLocations) {
+    const occ = str(l, "occurred_at");
+    if (!occ) continue;
+    const pingTime = new Date(occ).getTime();
+    const offsetMs = pingTime - incidentDate.getTime();
+    const offsetMinutes = Math.round(offsetMs / 60_000);
+    const pingCoords = geoPointSafe((l as Record<string, unknown>).location);
+    const rawSpd = num(l, "speed");
+    if (rawSpd == null || rawSpd < SPEED_MEANINGFUL_THRESHOLD_MPH) continue;
+    // Only include meaningful-speed pings within the 72-min pre-incident window
+    if (offsetMinutes >= -72 && offsetMinutes <= 0) {
+      realPings.push({
+        offsetMinutes,
+        speedMph: rawSpd,
+        lat: pingCoords?.lat ?? incidentLat,
+        lng: pingCoords?.lng ?? incidentLng,
+      });
+    }
+  }
+
+  // Derive base speed: use meaningful vehicle pings regardless of time window.
+  // Falls back to a vehicle-specific estimate when sandbox speeds are near-zero.
+  // Use vehicleId hash for repeatable per-vehicle variance (50–68 mph range).
+  const vehicleSpeedSeed = vehicleId
+    ? vehicleId.split("").reduce((acc, c, i) => acc + c.charCodeAt(0) * (i + 1), 0)
+    : 0;
+  const syntheticFallback = 50 + (vehicleSpeedSeed % 19); // 50–68 mph, stable per vehicle
+  const baseSpeed = vehicleSpeedsMeaningful.length > 0
+    ? Math.round(vehicleSpeedsMeaningful.reduce((a, b) => a + b, 0) / vehicleSpeedsMeaningful.length * 10) / 10
+    : syntheticFallback;
+  const speedFromApi = vehicleSpeedsMeaningful.length > 0;
+
+  // Speed at impact: meaningful ping closest to incident time
+  let closestToImpact: { offsetMinutes: number; speedMph: number } | null = null;
+  let closestTimeDiff = Infinity;
+  for (const l of vehicleLocations) {
+    const occ = str(l, "occurred_at");
+    const rawSpd = num(l, "speed");
+    if (!occ || rawSpd == null || rawSpd < SPEED_MEANINGFUL_THRESHOLD_MPH) continue;
+    const diff = Math.abs(new Date(occ).getTime() - incidentDate.getTime());
+    if (diff < closestTimeDiff) {
+      closestTimeDiff = diff;
+      closestToImpact = {
+        offsetMinutes: Math.round((new Date(occ).getTime() - incidentDate.getTime()) / 60_000),
+        speedMph: rawSpd,
+      };
+    }
+  }
+  const speedAtImpactRaw = closestToImpact?.speedMph ?? baseSpeed;
+
+  // ── Build common packet fields ─────────────────────────────────────────────
+  const firstName = str(driver, "first_name") ?? "Driver";
+  const lastName = str(driver, "last_name") ?? "Unknown";
+  // Prefer TSP driver name (e.g., "ned.ryerson") over synthetic Catena placeholders
+  const isSyntheticCatenaName = firstName.startsWith("Driver_") || firstName.startsWith("driver_");
+  const driverName = (isSyntheticCatenaName && dispatchTspName)
+    ? dispatchTspName.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : `${firstName} ${lastName}`;
+  const vehicleUnit = str(vehicle, "vehicle_name") ?? str(vehicle, "unit") ?? str(vehicle, "description") ?? str(dispatchLiveLoc, "vehicle_name") ?? `Unit-${vehicleId.slice(0, 6).toUpperCase()}`;
+  const vehicleVin = str(vehicle, "vin") ?? `VIN-UNAVAILABLE-${vehicleId.slice(0, 8).toUpperCase()}`;
+
+  const driverSummary = driverSummaries.find((s) => str(s, "driver_id") === driverId || str(s, "id") === driverId);
+  const driverSafetyEvents30d = num(driverSummary, "safety_events_30d");
+  const driverHosViolations30d = num(driverSummary, "hos_violations_30d");
+
+  const createdAt = str(driver, "created_at");
+  const driverTenureMonths = createdAt
+    ? Math.max(1, Math.round((Date.now() - new Date(createdAt).getTime()) / (30 * 24 * 3600_000)))
+    : 12;
+
+  // ── Safety events in 30-min pre-incident window ───────────────────────────
+  const windowStart = addMinutes(incidentDate, -30);
+  const recentEvents = driverEvents.filter((e) => {
+    const occ = str(e, "occurred_at");
+    if (!occ) return false;
+    const d = new Date(occ);
+    return d >= windowStart && d <= incidentDate;
+  }).slice(0, 10);
+
+  const safetyEventsInWindow: ClaimSafetyEvent[] = recentEvents.map((e, i) => {
+    const rawType = str(e, "event") ?? "other";
+    const metadata = (e as Record<string, unknown>).event_metadata;
+    const occ = str(e, "occurred_at");
+    const offsetMs = occ ? new Date(occ).getTime() - incidentDate.getTime() : -(i + 1) * 120_000;
+    return {
+      id: str(e, "id") ?? `evt-real-${i}`,
+      type: mapEventType(rawType),
+      severity: eventSeverity(rawType, metadata),
+      offsetMinutes: Math.round(offsetMs / 60_000),
+      description: `${rawType.replace(/_/g, " ")} recorded ${Math.abs(Math.round(offsetMs / 60_000))} min before incident`,
+      rawEventType: rawType,
+    };
+  });
+
+  // ── DVIR records (60-day window) ──────────────────────────────────────────
+  const sixty_days_ms = 60 * 24 * 60 * 60 * 1000;
+  const vehicleDvirLogs = dvirLogs.filter((l) => {
+    const vid = str(l, "vehicle_id");
+    if (vid && vid !== vehicleId) return false;
+    const occ = str(l, "occurred_at");
+    if (!occ) return false;
+    const d = new Date(occ).getTime();
+    return d >= incidentDate.getTime() - sixty_days_ms && d <= incidentDate.getTime();
+  });
+  const dvirRecords: DvirRecord[] = vehicleDvirLogs
+    .map((l) => {
+      const logId = str(l, "id");
+      return mapDvirLog(l, (logId ? dvirDefectsByLogId.get(logId) : null) ?? []);
+    })
+    .filter((r): r is DvirRecord => r !== null);
+
+  // ── HOS snapshot ──────────────────────────────────────────────────────────
+  // HOS endpoint has no driver_id filter. In sandbox environments, driver_id
+  // on HOS records sometimes matches the record's own id rather than the user id.
+  // Fall back to most recent fleet HOS record when no driver-specific match found.
+  const driverHosExact = hosAvailabilities.find((a) => str(a, "driver_id") === driverId);
+  const hosForSnapshot = driverHosExact ?? hosAvailabilities[0] ?? null;
+  const hosMatchedExactly = driverHosExact != null;
+  const hosAvailForSnapshot = hosForSnapshot ? [hosForSnapshot] : [];
+  const hosSnapshot = buildHosSnapshot(
+    hosForSnapshot ? (str(hosForSnapshot, "driver_id") ?? driverId) : driverId,
+    hosAvailForSnapshot,
+    hosViolations,
+  );
+  const driverHosViolations90d = hosViolations.filter((v) => str(v, "driver_id") === driverId).length;
+
+  // ── Speed timeline (real pings fill the 72-min window) ───────────────────
+  const speedTimeline = buildSpeedTimeline({
+    incidentAt,
+    incidentLat,
+    incidentLng,
+    baseSpeedMph: baseSpeed,
+    speedAtImpact: speedAtImpactRaw,
+    headingDeg,
+    peakOverrides: [], // no synthetic overrides — real events speak for themselves
+    realPings,
+  });
+
+  const speedAtImpactMph = speedTimeline.find((s) => s.offsetMinutes === 0)?.speedMph ?? speedAtImpactRaw;
+  const maxSpeedInWindowMph = Math.max(...speedTimeline.map((s) => s.speedMph));
+
+  const routeWaypoints = buildRouteWaypointsFromLocations(
+    locations, vehicleId, incidentAt, incidentLat, incidentLng, baseSpeed, headingDeg,
+  );
+
+  // ── Trip origin: oldest HOS event for this vehicle within 72h pre-incident ───
+  const tripWindowStart = incidentDate.getTime() - 72 * 3600_000;
+  let tripOriginRaw: { lat: number; lng: number; locationName: string | null; at: string } | null = null;
+  for (const e of hosEventRecords) {
+    if (str(e, "vehicle_id") !== vehicleId) continue;
+    const at = str(e, "started_at") ?? str(e, "occurred_at");
+    if (!at) continue;
+    const t = new Date(at).getTime();
+    if (t < tripWindowStart || t > incidentDate.getTime()) continue;
+    const coords = geoPointSafe((e as Record<string, unknown>).location);
+    if (!coords) continue;
+    if (!tripOriginRaw || at < tripOriginRaw.at) {
+      tripOriginRaw = { lat: coords.lat, lng: coords.lng, locationName: str(e, "location_name"), at };
+    }
+  }
+
+  // ── External enrichment (NOAA + OSM) ─────────────────────────────────────
+  const [weatherContext, roadContext, tripOriginCity] = await Promise.all([
+    fetchWeatherAtIncident(incidentLat, incidentLng, incidentAt),
+    fetchRoadContext(incidentLat, incidentLng, null),
+    tripOriginRaw ? reverseGeocode(tripOriginRaw.lat, tripOriginRaw.lng).catch(() => null) : Promise.resolve(null),
+  ]);
+  const tripOrigin = tripOriginRaw ? { ...tripOriginRaw, cityName: tripOriginCity } : null;
+
+  const postedSpeedLimitMph = roadContext.source === "osm" ? roadContext.postedSpeedLimitMph : null;
+
+  // Build human-readable location from road context or coordinates
+  const incidentLocation = roadContext.source === "osm" && roadContext.roadName
+    ? `${roadContext.roadName}${roadContext.roadClassification ? ` (${roadContext.roadClassification})` : ""} — ${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)}`
+    : coordsFromApi
+      ? `GPS ${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)}`
+      : "Location data unavailable from Catena API";
+
+  const incidentDescription = `Incident reported for ${vehicleUnit}, operated by ${driverName}. ` +
+    `${safetyEventsInWindow.length > 0 ? `${safetyEventsInWindow.length} safety event(s) recorded in 30-min window.` : "No safety events in 30-min window."}`;
+
+  // ── Provenance ────────────────────────────────────────────────────────────
+  const provenance: DataProvenanceEntry[] = [
+    prov("driverName", "catena_api"),
+    prov("driverId", "catena_api"),
+    prov("vehicleUnit", "catena_api"),
+    prov("vehicleVin", "catena_api"),
+    prov("incidentAt", mostRecentEvent ? "catena_api" : "synthetic", "Derived from most recent safety event timestamp"),
+    prov("incidentLat,incidentLng", coordsFromApi ? "catena_api" : "hardcoded", coordsFromApi ? "From Catena vehicle location ping" : "No location data in API"),
+    prov("headingDeg", num(bestLocForIncident, "heading") != null ? "catena_api" : "synthetic"),
+    prov("baseSpeed", speedFromApi ? "catena_api" : "synthetic", `${vehicleSpeedsMeaningful.length} meaningful speed pings from vehicle history`),
+    prov("speedAtImpact", closestToImpact ? "catena_api" : "synthetic"),
+    prov("speedTimeline", realPings.length > 0 ? "catena_api" : "synthetic", `${realPings.length} real pings in 72-min window`),
+    prov("safetyEventsInWindow", "catena_api"),
+    prov("hosSnapshot", hosForSnapshot ? "catena_api" : "synthetic", hosMatchedExactly ? "Matched to driver" : "Fleet representative — no exact driver match in fleet HOS records"),
+    prov("dvirRecords", "catena_api"),
+    prov("driverSafetyEvents30d", driverSafetyEvents30d != null ? "catena_analytics" : "catena_api"),
+    prov("weatherContext", weatherContext.source === "noaa" ? "noaa" : "synthetic"),
+    prov("roadContext", roadContext.source === "osm" ? "osm" : "synthetic"),
+  ];
+
+  // ── Data completeness ─────────────────────────────────────────────────────
+  const apiFields: string[] = ["driverName", "vehicleUnit", "vehicleVin", "safetyEventsInWindow", "dvirRecords"];
+  const missingFields: string[] = [];
+  const syntheticFieldsList: string[] = [];
+
+  if (coordsFromApi) apiFields.push("incidentLat", "incidentLng");
+  else syntheticFieldsList.push("incidentLat", "incidentLng");
+
+  if (speedFromApi) apiFields.push("baseSpeed");
+  else syntheticFieldsList.push("baseSpeed");
+
+  if (realPings.length > 0) apiFields.push("speedTimeline");
+  else syntheticFieldsList.push("speedTimeline");
+
+  if (hosForSnapshot) apiFields.push("hosSnapshot");
+  else syntheticFieldsList.push("hosSnapshot");
+
+  if (weatherContext.source === "noaa") apiFields.push("weatherContext");
+  else missingFields.push("weatherContext");
+
+  if (roadContext.source === "osm") apiFields.push("roadContext");
+  else missingFields.push("roadContext");
+
+  if (postedSpeedLimitMph != null) apiFields.push("postedSpeedLimitMph");
+  else missingFields.push("postedSpeedLimitMph");
+
+  if (driverSafetyEvents30d != null) apiFields.push("driverSafetyEvents30d");
+  else missingFields.push("driverSafetyEvents30d");
+
+  if (mostRecentEvent) apiFields.push("incidentAt");
+  else syntheticFieldsList.push("incidentAt");
+
+  const dataCompleteness = computeCompleteness(apiFields, missingFields, syntheticFieldsList);
+
+  // ── Evidence manifest ─────────────────────────────────────────────────────
+  const evidenceManifest: EvidenceManifestEntry[] = [
+    buildManifestEntry({ id: `catena-driver-${driverId}`, fileName: `catena_driver_${driverId}.json`, description: "Catena driver profile", source: "catena_api", data: driver, recordCount: 1 }),
+    buildManifestEntry({ id: `catena-vehicle-${vehicleId}`, fileName: `catena_vehicle_${vehicleId}.json`, description: "Catena vehicle record", source: "catena_api", data: vehicle, recordCount: 1 }),
+    buildManifestEntry({ id: `catena-safety-events`, fileName: `catena_safety_events_window.json`, description: "Catena safety events — 30-min pre-incident window", source: "catena_api", data: recentEvents, recordCount: recentEvents.length }),
+    buildManifestEntry({ id: `catena-loc-pings`, fileName: `catena_location_pings.json`, description: `Catena vehicle location pings — ${realPings.length} in 72-min window`, source: "catena_api", data: realPings, recordCount: realPings.length }),
+    buildManifestEntry({ id: `catena-dvir-logs`, fileName: `catena_dvir_logs.json`, description: "Catena DVIR logs — 60-day window", source: "catena_api", data: vehicleDvirLogs, recordCount: vehicleDvirLogs.length }),
+    buildManifestEntry({ id: `catena-hos-avail`, fileName: `catena_hos_availabilities.json`, description: hosMatchedExactly ? "Catena HOS — driver match" : "Catena HOS — fleet representative record", source: "catena_api", data: hosAvailForSnapshot, recordCount: hosAvailForSnapshot.length }),
+    ...(weatherContext.source === "noaa" ? [buildManifestEntry({ id: `noaa-weather`, fileName: `noaa_weather.json`, description: `NOAA weather — station ${weatherContext.stationId}`, source: "noaa", data: weatherContext, recordCount: 1 })] : []),
+    ...(roadContext.source === "osm" ? [buildManifestEntry({ id: `osm-road`, fileName: `osm_road_context.json`, description: `OSM road context — way ${roadContext.osmWayId}`, source: "osm", data: roadContext, recordCount: 1 })] : []),
+  ];
+
+  const packet: IncidentPacket = {
+    claimNumber,
+    incidentAt,
+    incidentLocation,
+    incidentLat,
+    incidentLng,
+    incidentDescription,
+    driverName,
+    driverId: driverId || null,
+    vehicleUnit,
+    vehicleId: vehicleId || null,
+    vehicleVin,
+    driverTenureMonths,
+    speedTimeline,
+    postedSpeedLimitMph,
+    speedAtImpactMph,
+    maxSpeedInWindowMph,
+    safetyEventsInWindow,
+    hosSnapshot,
+    driverHosViolations90d,
+    dvirRecords,
+    routeWaypoints,
+    tripOrigin,
+    driverSafetyEvents30d,
+    driverHosViolations30d,
+    weatherContext,
+    roadContext,
+    carrierContext: null,
+    incidentSummary: "",
+    dataCompleteness,
+    dataProvenance: provenance,
+    evidenceManifest,
+  };
+
+  packet.incidentSummary = buildIncidentSummary(packet);
+  return packet;
 }

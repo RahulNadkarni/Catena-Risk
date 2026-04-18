@@ -370,12 +370,8 @@ export async function buildFleetDossier(
       (c) => client.listDvirLogs({ ...fp, ...range, cursor: c }),
       { maxPages, size: pageSize },
     ),
-    collectPaged(
-      "listDvirDefects",
-      meta,
-      (c) => client.listDvirDefects({ ...fp, ...range, cursor: c }),
-      { maxPages, size: pageSize },
-    ),
+    // placeholder — defects are fetched per-log below (top-level /dvir-defects returns ERROR per COVERAGE.md)
+    Promise.resolve([] as DvirDefectRead[]),
     collectPaged(
       "listEngineLogs",
       meta,
@@ -394,6 +390,25 @@ export async function buildFleetDossier(
     timedOne("getAnalyticsOverview", () => client.getAnalyticsOverview({ ...fp }), null),
   ]);
 
+  // Fetch DVIR defects per log — correct endpoint per COVERAGE.md
+  // /dvir-defects (top-level) always errors; must use /dvir-logs/{id}/defects
+  const logsWithDefects = dvirLogs.filter((l) => (l as unknown as Record<string, unknown>)["defect_count"]);
+  const perLogDefects = await Promise.all(
+    logsWithDefects.map(async (l) => {
+      const logId = (l as unknown as { id?: string }).id;
+      if (!logId) return [];
+      try {
+        const res = await client.getDvirLogDefects(logId);
+        return res?.items ?? [];
+      } catch {
+        return [];
+      }
+    }),
+  );
+  const resolvedDvirDefects: DvirDefectRead[] = perLogDefects.flat();
+  // Merge with any placeholder empty array already in dvirDefects
+  const allDvirDefects = [...dvirDefects, ...resolvedDvirDefects];
+
   meta.fetchedAt = new Date().toISOString();
 
   const dossier: FleetDossier = {
@@ -411,7 +426,7 @@ export async function buildFleetDossier(
     hosDailySnapshots,
     hosAvailabilities,
     dvirLogs,
-    dvirDefects,
+    dvirDefects: allDvirDefects,
     engineLogs,
     connections,
     analyticsOverview: analyticsOverview ?? null,

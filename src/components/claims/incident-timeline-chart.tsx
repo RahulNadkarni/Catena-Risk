@@ -14,7 +14,7 @@ import type { SpeedSample, ClaimSafetyEvent } from "@/lib/claims/types";
 
 interface Props {
   speedTimeline: SpeedSample[];
-  speedLimitMph: number;
+  postedSpeedLimitMph: number | null;
   speedAtImpactMph: number;
   safetyEvents: ClaimSafetyEvent[];
 }
@@ -30,6 +30,7 @@ const EVENT_LABEL: Record<string, string> = {
   harsh_corner: "Harsh corner",
   speeding: "Speeding",
   distraction: "Distraction",
+  forward_collision: "FCW",
 };
 
 function formatOffset(minutes: number): string {
@@ -37,10 +38,11 @@ function formatOffset(minutes: number): string {
   return `T${minutes}m`;
 }
 
-export function IncidentTimelineChart({ speedTimeline, speedLimitMph, speedAtImpactMph, safetyEvents }: Props) {
-  const isOverLimit = speedAtImpactMph > speedLimitMph;
+export function IncidentTimelineChart({ speedTimeline, postedSpeedLimitMph, speedAtImpactMph, safetyEvents }: Props) {
+  const isOverLimit = postedSpeedLimitMph != null && speedAtImpactMph > postedSpeedLimitMph;
   const lineColor = isOverLimit ? "#dc2626" : "#0f766e";
-  const maxSpeed = Math.max(...speedTimeline.map((s) => s.speedMph), speedLimitMph + 5);
+  const limitForDomain = postedSpeedLimitMph ?? speedAtImpactMph;
+  const maxSpeed = Math.max(...speedTimeline.map((s) => s.speedMph), limitForDomain + 5);
 
   return (
     <div style={{ width: "100%", height: 260 }}>
@@ -64,13 +66,15 @@ export function IncidentTimelineChart({ speedTimeline, speedLimitMph, speedAtImp
             labelFormatter={(label) => `T${label}min`}
           />
 
-          {/* Speed limit reference */}
-          <ReferenceLine
-            y={speedLimitMph}
-            stroke="#dc2626"
-            strokeDasharray="6 3"
-            label={{ value: `Limit ${speedLimitMph}`, position: "insideTopRight", fontSize: 10, fill: "#dc2626" }}
-          />
+          {/* Speed limit reference — only when available */}
+          {postedSpeedLimitMph != null && (
+            <ReferenceLine
+              y={postedSpeedLimitMph}
+              stroke="#dc2626"
+              strokeDasharray="6 3"
+              label={{ value: `Limit ${postedSpeedLimitMph}`, position: "insideTopRight", fontSize: 10, fill: "#dc2626" }}
+            />
+          )}
 
           {/* Impact moment */}
           <ReferenceLine

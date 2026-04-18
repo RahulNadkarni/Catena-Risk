@@ -2,92 +2,39 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Database, MapPin } from "lucide-react";
 import { createClaim } from "@/app/actions/claims";
-import type { ScenarioId } from "@/lib/claims/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const SCENARIOS: { value: string; label: string }[] = [
-  { value: "", label: "Custom entry (blank fields)" },
-  {
-    value: "KS-2026-0142",
-    label: "KS-2026-0142 — Rear-end collision, I-80 NE (Exonerating)",
-  },
-  {
-    value: "KS-2026-0157",
-    label: "KS-2026-0157 — Lane change incident, I-95 NJ (Inculpating)",
-  },
-];
+interface Props {
+  defaultClaimNumber?: string;
+  fromDispatch?: boolean;
+  dispatchVehicleId?: string;
+}
 
-const SCENARIO_DEFAULTS: Record<ScenarioId, { claimNumber: string; incidentAt: string; incidentLocation: string; driverName: string; vehicleUnit: string }> = {
-  "KS-2026-0142": {
-    claimNumber: "KS-2026-0142",
-    incidentAt: "2026-03-14T14:22",
-    incidentLocation: "I-80 westbound MM 312, Kearney NE",
-    driverName: "Marcus T. Walcott",
-    vehicleUnit: "Unit 2841",
-  },
-  "KS-2026-0157": {
-    claimNumber: "KS-2026-0157",
-    incidentAt: "2026-03-21T09:47",
-    incidentLocation: "I-95 northbound MM 11.2, Woodbridge NJ",
-    driverName: "Devon R. Castillo",
-    vehicleUnit: "Unit 1174",
-  },
-};
-
-export function NewClaimForm() {
+export function NewClaimForm({ defaultClaimNumber = "", fromDispatch = false, dispatchVehicleId }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [scenarioId, setScenarioId] = useState<string>("");
-  const [claimNumber, setClaimNumber] = useState("");
-  const [incidentAt, setIncidentAt] = useState("");
-  const [incidentLocation, setIncidentLocation] = useState("");
-  const [driverName, setDriverName] = useState("");
-  const [vehicleUnit, setVehicleUnit] = useState("");
-
-  function handleScenarioChange(val: string) {
-    setScenarioId(val);
-    if (val === "" ) {
-      setClaimNumber("");
-      setIncidentAt("");
-      setIncidentLocation("");
-      setDriverName("");
-      setVehicleUnit("");
-      return;
-    }
-    const defaults = SCENARIO_DEFAULTS[val as ScenarioId];
-    if (defaults) {
-      setClaimNumber(defaults.claimNumber);
-      setIncidentAt(defaults.incidentAt);
-      setIncidentLocation(defaults.incidentLocation);
-      setDriverName(defaults.driverName);
-      setVehicleUnit(defaults.vehicleUnit);
-    }
-  }
+  const [claimNumber, setClaimNumber] = useState(defaultClaimNumber);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!claimNumber.trim()) return;
     setBusy(true);
     setError(null);
     try {
       const result = await createClaim({
-        claimNumber: claimNumber || `KS-${Date.now()}`,
-        scenarioId: (scenarioId as ScenarioId) || undefined,
-        incidentAt: incidentAt ? new Date(incidentAt).toISOString() : undefined,
-        incidentLocation: incidentLocation || undefined,
-        driverName: driverName || undefined,
-        vehicleUnit: vehicleUnit || undefined,
+        claimNumber: claimNumber.trim(),
+        dispatchVehicleId: dispatchVehicleId,
       });
       router.push(`/claims/${result.claimId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate defense packet");
+      setError(err instanceof Error ? err.message : "Failed to pull incident data from Catena API");
     } finally {
       setBusy(false);
     }
@@ -96,98 +43,62 @@ export function NewClaimForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Claim details</CardTitle>
+        <CardTitle>New evidence report</CardTitle>
         <CardDescription>
-          Select a demo scenario to pre-fill fields, or enter custom claim information.
+          {fromDispatch
+            ? "Claim number pre-filled from dispatch. Catena API will fetch ELD, HOS, DVIR, weather, and road data for the driver on record."
+            : "Enter a claim number to pull real telematics, HOS, DVIR, weather, and road data from Catena."}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleSubmit} className="grid gap-6">
           {error ? (
-            <div className="sm:col-span-2">
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            </div>
+            <Alert variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
 
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="scenario">Demo scenario</Label>
-            <select
-              id="scenario"
-              className="border-input bg-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-              value={scenarioId}
-              onChange={(e) => handleScenarioChange(e.target.value)}
-            >
-              {SCENARIOS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-            <p className="text-muted-foreground text-xs">
-              Selecting a demo scenario pre-fills all fields with synthetic incident data.
-            </p>
-          </div>
+          {fromDispatch && (
+            <div className="rounded-md border border-orange-200 bg-orange-50 px-4 py-3 flex items-start gap-3 text-sm">
+              <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-orange-600" />
+              <div className="space-y-0.5">
+                <p className="font-medium text-orange-900">From dispatch</p>
+                <p className="text-orange-800 text-xs">
+                  Claim number auto-generated from driver ID and today&apos;s date. Submit to pull a full telematics evidence packet from the Catena API.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
-            <Label htmlFor="claimNumber">Claim ID</Label>
+            <Label htmlFor="claimNumber">Claim number</Label>
             <Input
               id="claimNumber"
               value={claimNumber}
               onChange={(e) => setClaimNumber(e.target.value)}
               placeholder="KS-2026-XXXX"
+              required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="incidentAt">Incident date/time</Label>
-            <Input
-              id="incidentAt"
-              type="datetime-local"
-              value={incidentAt}
-              onChange={(e) => setIncidentAt(e.target.value)}
-            />
+          <div className="rounded-md border bg-muted/40 px-4 py-3 flex items-start gap-3 text-sm">
+            <Database className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+            <div className="text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">Live Catena API</p>
+              <p>Driver selected by highest safety event count. Speed, HOS, DVIR, and location pulled directly from ELD records. NOAA weather and OSM road context appended at incident coordinates. SHA-256 manifest generated for chain of custody.</p>
+            </div>
           </div>
 
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="incidentLocation">Incident location</Label>
-            <Input
-              id="incidentLocation"
-              value={incidentLocation}
-              onChange={(e) => setIncidentLocation(e.target.value)}
-              placeholder="I-80 westbound MM 312, Kearney NE"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="driverName">Driver name</Label>
-            <Input
-              id="driverName"
-              value={driverName}
-              onChange={(e) => setDriverName(e.target.value)}
-              placeholder="Full name"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="vehicleUnit">Vehicle unit</Label>
-            <Input
-              id="vehicleUnit"
-              value={vehicleUnit}
-              onChange={(e) => setVehicleUnit(e.target.value)}
-              placeholder="Unit 2841"
-            />
-          </div>
-
-          <div className="sm:col-span-2 flex justify-end">
-            <Button type="submit" disabled={busy}>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={busy || !claimNumber.trim()}>
               {busy ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Generating defense packet…
+                  Pulling from Catena…
                 </>
               ) : (
-                "Generate defense packet"
+                "Create evidence report"
               )}
             </Button>
           </div>

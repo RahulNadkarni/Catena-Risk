@@ -1,6 +1,6 @@
 /**
- * Defense packet PDF — 5 pages
- * Rendered server-side with @react-pdf/renderer
+ * Incident evidence PDF — rendered server-side with @react-pdf/renderer.
+ * Factual evidence summary; no legal opinion or settlement recommendation.
  */
 import {
   Document,
@@ -11,7 +11,7 @@ import {
   Font,
 } from "@react-pdf/renderer";
 import { format } from "date-fns";
-import type { DefensePacket } from "@/lib/claims/types";
+import type { IncidentPacket } from "@/lib/claims/types";
 
 Font.registerHyphenationCallback((word) => [word]);
 
@@ -21,12 +21,6 @@ const AMBER = "#d97706";
 const MUTED = "#6b7280";
 const BORDER = "#e5e7eb";
 const PAGE_PAD = 40;
-
-const DISPOSITION_COLOR: Record<string, string> = {
-  STRONG_DEFENSE_POSITION: "#059669",
-  UNFAVORABLE_EVIDENCE_CONSIDER_SETTLEMENT: DANGER,
-  NEUTRAL_FURTHER_INVESTIGATION: AMBER,
-};
 
 const styles = StyleSheet.create({
   page: {
@@ -84,16 +78,16 @@ function fmtH(h: number) {
   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
 }
 
-function Header({ p, total, claimId, gen }: { p: number; total: number; claimId: string; gen: string }) {
+function PageHeader({ p, total, claimId, gen }: { p: number; total: number; claimId: string; gen: string }) {
   return (
     <View style={styles.header}>
       <View>
-        <Text style={styles.headerTitle}>Keystone Defense Packet</Text>
+        <Text style={styles.headerTitle}>Incident Evidence Report</Text>
         <Text style={{ fontSize: 8, color: MUTED }}>Claim {claimId} · Page {p} of {total}</Text>
       </View>
       <View style={{ alignItems: "flex-end" }}>
         <Text style={{ fontSize: 8, color: MUTED }}>Generated {gen}</Text>
-        <Text style={{ fontSize: 7, color: MUTED }}>All telematics via Catena Clearing API</Text>
+        <Text style={{ fontSize: 7, color: MUTED }}>Catena Clearing API + NOAA + OSM</Text>
       </View>
     </View>
   );
@@ -102,7 +96,7 @@ function Header({ p, total, claimId, gen }: { p: number; total: number; claimId:
 function Footer() {
   return (
     <View style={styles.footer} fixed>
-      <Text>Confidential — Insurance Defense Work Product / Attorney-Client Privileged</Text>
+      <Text>Confidential — Objective evidence summary for insurance underwriting / claims</Text>
       <Text>Powered by Catena Clearing</Text>
     </View>
   );
@@ -118,114 +112,128 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 interface Props {
-  packet: DefensePacket;
+  packet: IncidentPacket;
 }
 
 export function DefensePacketPDF({ packet }: Props) {
   const gen = new Date().toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" });
-  const dispColor = DISPOSITION_COLOR[packet.disposition] ?? MUTED;
-  const dispLabel = packet.disposition === "STRONG_DEFENSE_POSITION"
-    ? "STRONG DEFENSE POSITION"
-    : packet.disposition === "UNFAVORABLE_EVIDENCE_CONSIDER_SETTLEMENT"
-      ? "UNFAVORABLE — CONSIDER EARLY SETTLEMENT"
-      : "NEUTRAL — FURTHER INVESTIGATION";
-
-  const isOverLimit = packet.speedAtImpactMph > packet.speedLimitMph;
+  const isOverLimit = packet.postedSpeedLimitMph != null && packet.speedAtImpactMph > packet.postedSpeedLimitMph;
   const unresolvedCritical = packet.dvirRecords
     .flatMap((r) => r.defects)
     .filter((d) => d.severity === "critical" && !d.resolvedAt);
 
-  // Build speed timeline text summary (no chart in PDF — text table)
   const speedMph = packet.speedTimeline.map((s) => s.speedMph);
   const avgSpeed = speedMph.length > 0 ? speedMph.reduce((a, b) => a + b, 0) / speedMph.length : 0;
+  const realPings = packet.speedTimeline.filter((s) => s.fromApi).length;
 
   return (
-    <Document title={`Defense Packet — Claim ${packet.claimNumber}`} creator="Keystone Risk Workbench">
+    <Document title={`Incident Evidence — Claim ${packet.claimNumber}`} creator="Catena Risk Platform">
 
-      {/* Page 1: Executive summary & disposition */}
+      {/* Page 1: Incident summary & data completeness */}
       <Page size="LETTER" style={styles.page}>
-        <Header p={1} total={5} claimId={packet.claimNumber} gen={gen} />
+        <PageHeader p={1} total={4} claimId={packet.claimNumber} gen={gen} />
 
-        <View style={{ ...styles.card, borderColor: dispColor }}>
+        <View style={{ ...styles.card, borderColor: BRAND }}>
           <View style={styles.row}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, flex: 1 }}>Disposition</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", color: dispColor, fontSize: 9 }}>{dispLabel}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, flex: 1 }}>Data Completeness</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", color: BRAND, fontSize: 9 }}>
+              {packet.dataCompleteness.status}
+            </Text>
           </View>
-          <Text style={{ ...styles.narrative, marginTop: 6 }}>{packet.dispositionRationale}</Text>
-          <View style={{ marginTop: 8 }}>
-            {packet.dispositionFactors.map((f, i) => (
-              <View key={i} style={styles.bullet}>
-                <Text style={styles.bulletDot}>•</Text>
-                <Text style={{ flex: 1, fontSize: 8.5, color: "#374151" }}>{f}</Text>
-              </View>
-            ))}
-          </View>
+          {packet.dataCompleteness.apiFieldsPresent.length > 0 && (
+            <Text style={{ ...styles.narrative, marginTop: 4, color: "#059669" }}>
+              API confirmed: {packet.dataCompleteness.apiFieldsPresent.join(", ")}
+            </Text>
+          )}
+          {packet.dataCompleteness.missingFields.length > 0 && (
+            <Text style={{ ...styles.narrative, marginTop: 4, color: DANGER }}>
+              Unavailable: {packet.dataCompleteness.missingFields.join(", ")}
+            </Text>
+          )}
+          {packet.dataCompleteness.syntheticFields.length > 0 && (
+            <Text style={{ ...styles.narrative, marginTop: 4, color: AMBER }}>
+              Synthetic: {packet.dataCompleteness.syntheticFields.join(", ")}
+            </Text>
+          )}
         </View>
 
-        <Text style={styles.sectionTitle}>Incident summary</Text>
+        <Text style={styles.sectionTitle}>Incident details</Text>
         <View style={styles.card}>
           <Row label="Claim #" value={packet.claimNumber} />
           <Row label="Incident date/time" value={fmtDate(packet.incidentAt)} />
           <Row label="Location" value={packet.incidentLocation} />
           <Row label="Description" value={packet.incidentDescription} />
           <Row label="Driver" value={packet.driverName} />
+          {packet.driverId && <Row label="Driver ID" value={packet.driverId} />}
           <Row label="Vehicle unit" value={packet.vehicleUnit} />
           <Row label="VIN" value={packet.vehicleVin} />
+          <Row label="Driver tenure" value={`${packet.driverTenureMonths} months`} />
+        </View>
+
+        <Text style={styles.sectionTitle}>Incident summary narrative</Text>
+        <View style={styles.card}>
+          <Text style={styles.narrative}>{packet.incidentSummary.replace(/\*\*/g, "")}</Text>
         </View>
 
         <Footer />
       </Page>
 
-      {/* Page 2: Speed timeline summary */}
+      {/* Page 2: Speed & safety events */}
       <Page size="LETTER" style={styles.page}>
-        <Header p={2} total={5} claimId={packet.claimNumber} gen={gen} />
+        <PageHeader p={2} total={4} claimId={packet.claimNumber} gen={gen} />
 
         <Text style={styles.sectionTitle}>Speed telemetry (72-min pre-incident window)</Text>
         <View style={styles.card}>
           <Row label="Speed at impact" value={`${packet.speedAtImpactMph} mph`} />
-          <Row label="Posted speed limit" value={`${packet.speedLimitMph} mph`} />
-          <Row label="Delta" value={isOverLimit ? `${packet.speedAtImpactMph - packet.speedLimitMph} mph OVER limit` : `${packet.speedLimitMph - packet.speedAtImpactMph} mph below limit`} />
+          <Row
+            label="Posted speed limit"
+            value={packet.postedSpeedLimitMph != null ? `${packet.postedSpeedLimitMph} mph (OSM)` : "Unavailable"}
+          />
+          {packet.postedSpeedLimitMph != null && (
+            <Row
+              label="Delta vs. limit"
+              value={isOverLimit
+                ? `${packet.speedAtImpactMph - packet.postedSpeedLimitMph!} mph OVER`
+                : `${packet.postedSpeedLimitMph! - packet.speedAtImpactMph} mph below`}
+            />
+          )}
           <Row label="Max speed in window" value={`${packet.maxSpeedInWindowMph.toFixed(1)} mph`} />
           <Row label="Average speed in window" value={`${avgSpeed.toFixed(1)} mph`} />
-          <Row label="Speed samples" value={`${packet.speedTimeline.length} (1-min interval)`} />
+          <Row label="Speed samples (total)" value={`${packet.speedTimeline.length}`} />
+          <Row label="Real API pings" value={`${realPings} of ${packet.speedTimeline.length}`} />
         </View>
 
-        {/* Speed table — first 20 and last 10 points around impact */}
         <Text style={styles.sectionTitle}>Selected speed readings</Text>
         <View style={styles.card}>
           <View style={{ ...styles.row, borderBottom: `1 solid ${BORDER}`, paddingBottom: 3, marginBottom: 4 }}>
             <Text style={{ color: MUTED, width: 70 }}>Offset (min)</Text>
             <Text style={{ color: MUTED, flex: 1, textAlign: "center" }}>Speed (mph)</Text>
-            <Text style={{ color: MUTED, width: 80, textAlign: "right" }}>Vs limit</Text>
+            <Text style={{ color: MUTED, width: 50, textAlign: "right" }}>API?</Text>
           </View>
-          {[
-            ...packet.speedTimeline.slice(0, 10),
-            ...packet.speedTimeline.slice(-12),
-          ].map((s, i) => (
+          {[...packet.speedTimeline.slice(0, 8), ...packet.speedTimeline.slice(-10)].map((s, i) => (
             <View key={i} style={{ ...styles.row, paddingVertical: 1 }}>
               <Text style={{ width: 70, color: s.offsetMinutes === 0 ? DANGER : MUTED }}>
                 {s.offsetMinutes === 0 ? "IMPACT" : `T${s.offsetMinutes}m`}
               </Text>
-              <Text style={{ flex: 1, textAlign: "center", color: s.speedMph > packet.speedLimitMph ? DANGER : "#374151", fontFamily: s.offsetMinutes === 0 ? "Helvetica-Bold" : "Helvetica" }}>
+              <Text style={{ flex: 1, textAlign: "center", fontFamily: s.offsetMinutes === 0 ? "Helvetica-Bold" : "Helvetica" }}>
                 {s.speedMph.toFixed(1)}
               </Text>
-              <Text style={{ width: 80, textAlign: "right", color: s.speedMph > packet.speedLimitMph ? DANGER : "#059669", fontSize: 8 }}>
-                {s.speedMph > packet.speedLimitMph ? `+${(s.speedMph - packet.speedLimitMph).toFixed(1)} over` : `${(packet.speedLimitMph - s.speedMph).toFixed(1)} below`}
+              <Text style={{ width: 50, textAlign: "right", color: s.fromApi ? "#059669" : MUTED }}>
+                {s.fromApi ? "API" : "est."}
               </Text>
             </View>
           ))}
-          <Text style={{ color: MUTED, fontSize: 7, marginTop: 6 }}>Showing 10 earliest + 12 latest of {packet.speedTimeline.length} total readings. Full 72-minute log available on request.</Text>
         </View>
 
-        {/* Safety events */}
-        <Text style={styles.sectionTitle}>Pre-incident safety events ({packet.safetyEventsWindow.length} events)</Text>
-        {packet.safetyEventsWindow.length === 0 ? (
-          <Text style={{ color: "#059669", fontSize: 9 }}>No safety events recorded in 30-minute pre-incident window — favorable evidence.</Text>
+        <Text style={styles.sectionTitle}>Pre-incident safety events ({packet.safetyEventsInWindow.length})</Text>
+        {packet.safetyEventsInWindow.length === 0 ? (
+          <Text style={{ color: "#059669", fontSize: 9 }}>No safety events in 30-min pre-incident window.</Text>
         ) : (
-          packet.safetyEventsWindow.map((evt) => (
+          packet.safetyEventsInWindow.map((evt) => (
             <View key={evt.id} style={{ ...styles.card, marginBottom: 4 }}>
               <Row label={`T${evt.offsetMinutes}min — ${evt.type.replace(/_/g, " ")}`} value={evt.severity.toUpperCase()} />
               <Text style={styles.narrative}>{evt.description}</Text>
+              <Text style={{ ...styles.narrative, color: MUTED }}>Raw: {evt.rawEventType}</Text>
             </View>
           ))
         )}
@@ -233,49 +241,41 @@ export function DefensePacketPDF({ packet }: Props) {
         <Footer />
       </Page>
 
-      {/* Page 3: Driver compliance — HOS */}
+      {/* Page 3: HOS, DVIR, driver profile */}
       <Page size="LETTER" style={styles.page}>
-        <Header p={3} total={5} claimId={packet.claimNumber} gen={gen} />
+        <PageHeader p={3} total={4} claimId={packet.claimNumber} gen={gen} />
 
-        <Text style={styles.sectionTitle}>Driver compliance at incident time</Text>
+        <Text style={styles.sectionTitle}>Hours of service at incident time</Text>
         <View style={{ ...styles.card, borderColor: packet.hosSnapshot.isCompliant ? "#059669" : DANGER }}>
-          <View style={{ ...styles.row, marginBottom: 6 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", flex: 1 }}>HOS status</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", color: packet.hosSnapshot.isCompliant ? "#059669" : DANGER }}>
-              {packet.hosSnapshot.isCompliant ? "COMPLIANT" : "VIOLATION"}
-            </Text>
-          </View>
+          <Row label="Compliance status" value={packet.hosSnapshot.isCompliant ? "COMPLIANT" : "VIOLATION"} />
           <Row label="Drive time used" value={`${fmtH(packet.hosSnapshot.driveTimeUsedHours)} / ${packet.hosSnapshot.driveTimeLimitHours}h`} />
           <Row label="Drive time remaining" value={fmtH(packet.hosSnapshot.hoursUntilDriveLimit)} />
           <Row label="70-hr cycle used" value={`${fmtH(packet.hosSnapshot.cycleUsedHours)} / ${packet.hosSnapshot.cycleLimitHours}h`} />
           <Row label="Cycle time remaining" value={fmtH(packet.hosSnapshot.hoursUntilCycleLimit)} />
-          <Row label="Duty status at incident" value={packet.hosSnapshot.dutyStatusAtIncident.replace(/_/g, " ")} />
+          {packet.hosSnapshot.availableShiftHours != null && (
+            <Row label="Shift time remaining" value={fmtH(packet.hosSnapshot.availableShiftHours)} />
+          )}
+          <Row label="Duty status" value={packet.hosSnapshot.dutyStatusAtIncident.replace(/_/g, " ")} />
           {packet.hosSnapshot.violationNote && (
             <Text style={{ ...styles.narrative, marginTop: 6, color: AMBER }}>
-              ⚠ {packet.hosSnapshot.violationNote}
+              Note: {packet.hosSnapshot.violationNote}
             </Text>
           )}
         </View>
 
         <Text style={styles.sectionTitle}>Driver safety profile</Text>
         <View style={styles.card}>
-          <Row label="Safety score" value={`${packet.driverSafetyScore}/100`} />
-          <Row label="HOS violations (90d)" value={packet.driverHosViolations90d.toString()} />
+          <Row label="Safety events (30d)" value={packet.driverSafetyEvents30d != null ? String(packet.driverSafetyEvents30d) : "unavailable"} />
+          <Row label="HOS violations (90d)" value={String(packet.driverHosViolations90d)} />
+          <Row label="HOS violations (30d)" value={packet.driverHosViolations30d != null ? String(packet.driverHosViolations30d) : "unavailable"} />
           <Row label="Driver tenure" value={`${packet.driverTenureMonths} months`} />
         </View>
 
-        <Footer />
-      </Page>
-
-      {/* Page 4: Vehicle maintenance & event log */}
-      <Page size="LETTER" style={styles.page}>
-        <Header p={4} total={5} claimId={packet.claimNumber} gen={gen} />
-
         <Text style={styles.sectionTitle}>DVIR records (60-day window)</Text>
         <View style={{ ...styles.card, borderColor: unresolvedCritical.length > 0 ? DANGER : "#059669" }}>
-          <Row label="Total inspections" value={packet.dvirRecords.length.toString()} />
-          <Row label="Unsatisfactory inspections" value={packet.dvirRecords.filter((r) => r.status === "unsatisfactory").length.toString()} />
-          <Row label="Unresolved critical defects" value={unresolvedCritical.length > 0 ? `${unresolvedCritical.length} — see below` : "None"} />
+          <Row label="Total inspections" value={String(packet.dvirRecords.length)} />
+          <Row label="Unsatisfactory" value={String(packet.dvirRecords.filter((r) => r.status === "unsatisfactory").length)} />
+          <Row label="Unresolved critical defects" value={unresolvedCritical.length > 0 ? String(unresolvedCritical.length) : "None"} />
         </View>
         {unresolvedCritical.map((d) => (
           <View key={d.id} style={{ ...styles.card, borderColor: DANGER, marginBottom: 4 }}>
@@ -284,41 +284,73 @@ export function DefensePacketPDF({ packet }: Props) {
           </View>
         ))}
 
-        <Text style={styles.sectionTitle}>Fuel stops (72-hour window)</Text>
-        {packet.fuelStops.map((stop) => (
-          <View key={stop.id} style={{ ...styles.row, paddingVertical: 2, borderBottom: `1 solid ${BORDER}` }}>
-            <Text style={{ flex: 1, fontSize: 8.5 }}>{stop.locationName}</Text>
-            <Text style={{ color: MUTED, fontSize: 8.5 }}>{stop.gallons.toFixed(1)} gal · {fmtDate(stop.occurredAt)}</Text>
-          </View>
-        ))}
-        <Text style={{ color: MUTED, fontSize: 7, marginTop: 4 }}>Fuel data synthetic for demo — Catena fuel API not yet in public spec.</Text>
-
         <Footer />
       </Page>
 
-      {/* Page 5: Defense narrative & chain of custody */}
+      {/* Page 4: External enrichment & chain of custody */}
       <Page size="LETTER" style={styles.page}>
-        <Header p={5} total={5} claimId={packet.claimNumber} gen={gen} />
+        <PageHeader p={4} total={4} claimId={packet.claimNumber} gen={gen} />
 
-        <Text style={styles.sectionTitle}>Defense narrative</Text>
-        <View style={styles.card}>
-          <Text style={styles.narrative}>{packet.defenseNarrative.replace(/\*\*/g, "")}</Text>
-          <Text style={{ color: MUTED, fontSize: 7, marginTop: 8, borderTop: `1 solid ${BORDER}`, paddingTop: 4 }}>
-            All data is synthetic and generated for demonstration purposes only. This narrative does not constitute legal advice.
-          </Text>
-        </View>
+        {packet.weatherContext && packet.weatherContext.source === "noaa" && (
+          <>
+            <Text style={styles.sectionTitle}>Weather conditions — NOAA (api.weather.gov)</Text>
+            <View style={styles.card}>
+              <Row label="Station" value={packet.weatherContext.stationName ?? packet.weatherContext.stationId ?? "—"} />
+              <Row label="Distance from incident" value={`${packet.weatherContext.stationDistanceKm} km`} />
+              <Row label="Conditions" value={packet.weatherContext.conditionDescription ?? "—"} />
+              <Row label="Road condition derived" value={packet.weatherContext.roadCondition} />
+              {packet.weatherContext.temperatureF != null && <Row label="Temperature" value={`${packet.weatherContext.temperatureF}°F`} />}
+              {packet.weatherContext.windSpeedMph != null && <Row label="Wind speed" value={`${packet.weatherContext.windSpeedMph} mph`} />}
+              {packet.weatherContext.visibilityMiles != null && <Row label="Visibility" value={`${packet.weatherContext.visibilityMiles} mi`} />}
+              {packet.weatherContext.rawObservationUrl && (
+                <Text style={{ ...styles.narrative, color: MUTED, marginTop: 4 }}>
+                  Source: {packet.weatherContext.rawObservationUrl}
+                </Text>
+              )}
+            </View>
+          </>
+        )}
 
-        <Text style={styles.sectionTitle}>Chain of custody</Text>
+        {packet.roadContext && packet.roadContext.source === "osm" && (
+          <>
+            <Text style={styles.sectionTitle}>Road context — OpenStreetMap Overpass</Text>
+            <View style={styles.card}>
+              {packet.roadContext.roadName && <Row label="Road name" value={packet.roadContext.roadName} />}
+              <Row label="Classification" value={packet.roadContext.roadClassification ?? "unknown"} />
+              <Row label="Posted speed limit" value={packet.roadContext.postedSpeedLimitMph != null ? `${packet.roadContext.postedSpeedLimitMph} mph` : "Not tagged"} />
+              {packet.roadContext.osmWayId && <Row label="OSM way ID" value={packet.roadContext.osmWayId} />}
+            </View>
+          </>
+        )}
+
+        <Text style={styles.sectionTitle}>Chain of custody — evidence manifest</Text>
         <View style={styles.card}>
-          <Row label="Data source" value="Catena Clearing API" />
           <Row label="Telematics window" value="72 hours pre-incident" />
-          <Row label="Speed samples" value={`${packet.speedTimeline.length} (1-min interval)`} />
+          <Row label="Speed samples" value={`${packet.speedTimeline.length} (1-min interval), ${realPings} from API`} />
           <Row label="Route waypoints" value={`${packet.routeWaypoints.length} (15-min interval)`} />
           <Row label="DVIR records" value={`${packet.dvirRecords.length} inspections`} />
+          <Row label="Evidence manifest entries" value={String(packet.evidenceManifest.length)} />
           <Row label="Generated at" value={gen} />
-          <Text style={{ ...styles.narrative, marginTop: 6, color: MUTED }}>
-            Evidence integrity: All telematics data retrieved via Catena Clearing&apos;s tamper-evident API pipeline.
-            This packet was generated from Catena-sourced telematics data and is suitable for use in litigation support.
+        </View>
+
+        {packet.evidenceManifest.length > 0 && (
+          <>
+            <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", marginTop: 6, marginBottom: 4 }}>SHA-256 hashes (NIST chain-of-custody)</Text>
+            {packet.evidenceManifest.map((e) => (
+              <View key={e.id} style={{ ...styles.row, paddingVertical: 1 }}>
+                <Text style={{ flex: 1, fontSize: 7.5, color: MUTED }}>{e.description}</Text>
+                <Text style={{ width: 120, fontSize: 7, textAlign: "right", color: MUTED }}>{e.sha256.slice(0, 16)}…</Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        <View style={{ ...styles.card, marginTop: 16, borderColor: MUTED }}>
+          <Text style={{ ...styles.narrative, color: MUTED }}>
+            This document is an objective evidence summary generated from Catena Clearing telematics data,
+            NOAA weather records (FRE 902 self-authenticating), and OpenStreetMap road data.
+            No legal opinion, liability determination, or settlement recommendation is expressed or implied.
+            All data provenance is tracked per field in the accompanying JSON packet.
           </Text>
         </View>
 

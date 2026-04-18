@@ -8,9 +8,13 @@ import {
   listClaims as listClaimsRows,
   updateClaimStatus as updateStatus,
 } from "@/lib/db/claims";
-import { generateDefensePacket } from "@/lib/claims/generate-scenario";
-import { buildDefenseNarrative } from "@/lib/claims/narrative";
-import type { ClaimStatus, ClaimDisposition, DefensePacket, ScenarioId, ClaimRow, ClaimListItem } from "@/lib/claims/types";
+import { buildRealSingleIncidentPacket } from "@/lib/claims/fetch-scenario";
+import type {
+  ClaimStatus,
+  IncidentPacket,
+  ClaimRow,
+  ClaimListItem,
+} from "@/lib/claims/types";
 import { listHeroFleetIds } from "@/lib/underwriting/hero-fleets";
 
 export type { ClaimListItem } from "@/lib/claims/types";
@@ -25,8 +29,8 @@ export interface ClaimWithPacket {
   incidentLocation: string;
   driverName: string;
   vehicleUnit: string;
-  disposition: ClaimDisposition;
-  packet: DefensePacket;
+  dataCompleteness: string;
+  packet: IncidentPacket;
 }
 
 function rowToListItem(row: ClaimRow): ClaimListItem {
@@ -40,45 +44,27 @@ function rowToListItem(row: ClaimRow): ClaimListItem {
     incidentLocation: row.incident_location,
     driverName: row.driver_name,
     vehicleUnit: row.vehicle_unit,
-    disposition: row.disposition,
+    dataCompleteness: row.data_completeness,
   };
 }
 
 function rowToWithPacket(row: ClaimRow): ClaimWithPacket {
   return {
     ...rowToListItem(row),
-    packet: JSON.parse(row.defense_packet_json) as DefensePacket,
+    packet: JSON.parse(row.incident_packet_json) as IncidentPacket,
   };
 }
 
 export async function createClaim(input: {
   claimNumber: string;
-  scenarioId?: ScenarioId;
-  incidentAt?: string;
-  incidentLocation?: string;
-  driverName?: string;
-  vehicleUnit?: string;
+  dispatchVehicleId?: string;
 }): Promise<{ claimId: string }> {
   const heroIds = await listHeroFleetIds();
 
-  let packet: DefensePacket;
-  let fleetId: string;
-
-  if (input.scenarioId) {
-    packet = generateDefensePacket(input.scenarioId);
-    fleetId = input.scenarioId === "KS-2026-0142" ? (heroIds[0] ?? "demo") : (heroIds[1] ?? "demo");
-  } else {
-    // Custom entry: build minimal packet from scenario 1 template, override fields
-    packet = generateDefensePacket("KS-2026-0142");
-    packet.claimNumber = input.claimNumber;
-    packet.incidentAt = input.incidentAt ?? packet.incidentAt;
-    packet.incidentLocation = input.incidentLocation ?? packet.incidentLocation;
-    packet.driverName = input.driverName ?? packet.driverName;
-    packet.vehicleUnit = input.vehicleUnit ?? packet.vehicleUnit;
-    fleetId = heroIds[0] ?? "demo";
-  }
-
-  packet.defenseNarrative = buildDefenseNarrative(packet);
+  const packet: IncidentPacket = await buildRealSingleIncidentPacket(input.claimNumber, {
+    dispatchVehicleId: input.dispatchVehicleId,
+  });
+  const fleetId = heroIds[0] ?? "demo";
 
   const claimId = randomUUID();
   insertClaim({
@@ -90,8 +76,8 @@ export async function createClaim(input: {
     incidentLocation: packet.incidentLocation,
     driverName: packet.driverName,
     vehicleUnit: packet.vehicleUnit,
-    disposition: packet.disposition,
-    defensePacket: packet,
+    dataCompleteness: packet.dataCompleteness.status,
+    incidentPacket: packet,
   });
 
   return { claimId };

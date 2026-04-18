@@ -6,10 +6,9 @@ import { DemoModeWidget } from "@/components/layout/demo-mode-widget";
 const nav = [
   { href: "/", label: "Dashboard" },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/dispatch", label: "Dispatch" },
   { href: "/underwriting/new", label: "New submission" },
   { href: "/claims", label: "Claims" },
-  { href: "/roi", label: "ROI" },
-  { href: "/tech", label: "Tech" },
 ];
 
 export interface AppShellProps {

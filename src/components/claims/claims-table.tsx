@@ -15,27 +15,17 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { ClaimListItem, ClaimStatus, ClaimDisposition } from "@/lib/claims/types";
+import type { ClaimListItem, ClaimStatus } from "@/lib/claims/types";
 
 function statusBadge(status: ClaimStatus) {
   const map: Record<ClaimStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
     open: { label: "Open", variant: "default" },
     under_review: { label: "Under review", variant: "secondary" },
-    closed_exonerated: { label: "Closed — exonerated", variant: "outline" },
-    closed_settled: { label: "Closed — settled", variant: "outline" },
+    data_collected: { label: "Data collected", variant: "outline" },
+    closed: { label: "Closed", variant: "outline" },
   };
   const { label, variant } = map[status] ?? { label: status, variant: "outline" };
   return <Badge variant={variant}>{label}</Badge>;
-}
-
-function dispositionBadge(d: ClaimDisposition) {
-  if (d === "STRONG_DEFENSE_POSITION") {
-    return <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">Strong defense</Badge>;
-  }
-  if (d === "UNFAVORABLE_EVIDENCE_CONSIDER_SETTLEMENT") {
-    return <Badge variant="destructive">Consider settlement</Badge>;
-  }
-  return <Badge variant="outline">Further investigation</Badge>;
 }
 
 export function ClaimsTable({ claims }: { claims: ClaimListItem[] }) {
@@ -93,11 +83,6 @@ export function ClaimsTable({ claims }: { claims: ClaimListItem[] }) {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => statusBadge(row.original.status),
-      },
-      {
-        accessorKey: "disposition",
-        header: "Disposition",
-        cell: ({ row }) => dispositionBadge(row.original.disposition),
       },
     ],
     [],
