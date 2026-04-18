@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { buttonVariants } from "@/components/ui/button";
 
 export const runtime = "nodejs";
 
@@ -10,7 +8,7 @@ export default function AboutPage() {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">About Keystone Risk</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">About the Risk Workbench</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           Forward Deployed Engineer pilot project · Catena Clearing API
         </p>
@@ -18,11 +16,11 @@ export default function AboutPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">What Keystone does</CardTitle>
+          <CardTitle className="text-base">What this workbench does</CardTitle>
         </CardHeader>
         <CardContent className="prose prose-sm max-w-none text-muted-foreground leading-relaxed">
           <p>
-            Keystone Risk is a commercial auto underwriting workbench that transforms raw telematics
+            This is a commercial auto underwriting workbench that transforms raw telematics
             data — pulled live from the Catena Clearing API — into actionable risk intelligence.
             Underwriters get a peer-relative risk score, a six-factor sub-score breakdown, and a
             narrative report generated from real ELD data in under a minute. Claims teams get an
@@ -48,7 +46,7 @@ export default function AboutPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p><span className="font-medium text-foreground">Keystone Freight Insurance</span></p>
+            <p><span className="font-medium text-foreground">Apex Freight Insurance</span></p>
             <p>Mid-market MGA specializing in commercial trucking. $120M annual premium book, 800 insured fleets, 2,500 quotes/year.</p>
             <p>Pain points: loss ratio trending to 78%, claims lifecycle averaging 14 months, underwriting entirely document-driven with no telematics signal.</p>
           </CardContent>
@@ -85,11 +83,6 @@ export default function AboutPage() {
         </ul>
       </section>
 
-      <div className="flex flex-wrap gap-3 pb-8">
-        <Link href="/tech" className={buttonVariants({ variant: "outline" })}>
-          Architecture →
-        </Link>
-      </div>
     </div>
   );
 }

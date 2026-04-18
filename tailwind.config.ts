@@ -45,10 +45,10 @@ const config: Config = {
         border: "var(--border)",
         input: "var(--input)",
         ring: "var(--ring)",
-        keystone: {
-          DEFAULT: "var(--keystone)",
-          foreground: "var(--keystone-foreground)",
-          muted: "var(--keystone-muted)",
+        brand: {
+          DEFAULT: "var(--brand)",
+          foreground: "var(--brand-foreground)",
+          muted: "var(--brand-muted)",
         },
         success: "var(--success)",
         warning: "var(--warning)",

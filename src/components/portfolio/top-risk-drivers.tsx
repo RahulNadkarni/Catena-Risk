@@ -4,13 +4,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 
 function displayName(d: TopDriverRisk): string {
+  // Priority: joined live-locations driver_name (most reliable on the sandbox) →
+  // real first/last → username → "Unnamed driver".
+  if (d.liveLocationName) return d.liveLocationName;
   const first = d.firstName;
   const last = d.lastName;
   const isSynthetic = !first || first.startsWith("Driver_") || first.startsWith("driver_");
-  if (isSynthetic && d.username && !d.username.startsWith("user_")) {
+  if (!isSynthetic && first && last) return `${first} ${last}`;
+  if (!isSynthetic && first) return first;
+  if (d.username && !d.username.startsWith("user_")) {
     return d.username.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
-  return `${first ?? "Driver"} ${last ?? d.driverId.slice(0, 6)}`;
+  return "Unnamed driver";
 }
 
 export function TopRiskDriversCard({ drivers }: { drivers: TopDriverRisk[] }) {
@@ -44,7 +49,14 @@ export function TopRiskDriversCard({ drivers }: { drivers: TopDriverRisk[] }) {
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-muted-foreground tabular-nums shrink-0 w-5 text-right text-xs">{i + 1}</span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate text-primary">{displayName(d)}</p>
+                  <p className="text-sm font-medium truncate text-primary">
+                    {displayName(d)}
+                    {d.driverId && (
+                      <span className="ml-1.5 text-[10px] text-muted-foreground/60 font-mono tabular-nums">
+                        {d.driverId.slice(0, 8)}
+                      </span>
+                    )}
+                  </p>
                   {d.rulesetCode && (
                     <p className="text-xs text-muted-foreground font-mono truncate">{d.rulesetCode}</p>
                   )}

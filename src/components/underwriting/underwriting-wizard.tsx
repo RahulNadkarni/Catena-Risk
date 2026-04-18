@@ -220,8 +220,8 @@ export function UnderwritingWizard({
             <CardHeader>
               <CardTitle>Consent & data sharing</CardTitle>
               <CardDescription>
-                Keystone requests read-only telematics via Catena. If the sandbox rejects writes, we record simulated
-                consent and continue for demo purposes.
+                The workbench requests read-only telematics via Catena. If the sandbox rejects writes, we record
+                simulated consent and continue for demo purposes.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm leading-relaxed text-muted-foreground">
@@ -293,11 +293,11 @@ export function UnderwritingWizard({
           <Card>
             <CardHeader>
               <CardTitle>Flow</CardTitle>
-              <CardDescription>Keystone orchestrates Catena on behalf of the carrier.</CardDescription>
+              <CardDescription>The workbench orchestrates Catena on behalf of the carrier.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <FlowBox icon={<Building2 className="h-6 w-6" />} title="Keystone" subtitle="Workbench" />
+                <FlowBox icon={<Building2 className="h-6 w-6" />} title="Workbench" subtitle="Underwriting" />
                 <AnimatedArrow />
                 <FlowBox icon={<Shield className="h-6 w-6" />} title="Catena" subtitle="Telematics hub" />
                 <AnimatedArrow />

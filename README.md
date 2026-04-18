@@ -53,15 +53,16 @@ npm run lint
 npm run test       # vitest — 18 unit tests across scoring, derived metrics, and 429-retry behavior
 ```
 
-### Demo seed data
+### Pre-seeded demo data
 
-Submissions and claims persist to SQLite at `data/submissions.db`. A pre-seeded DB ships with the repo so the portfolio, dispatch, and claims pages have content on first load. To rebuild from scratch:
+The SQLite database at `data/submissions.db` ships with the submission already populated — no seeding step is required. On first load you'll see:
 
-```bash
-npm run seed:fixtures   # snapshot hero fleets for peer benchmarks
-npm run seed:claims     # seed demo claims
-npm run seed:real       # build one real claim packet end-to-end
-```
+- **4 scored fleet submissions** across the sandbox hero fleets (portfolio + underwriting pages have real data on open)
+- **2 demo claims**, both built live against the Catena sandbox:
+  - `DISP-364F02-2026-0418` — Rita Hanson (dispatch-initiated, near-limit HOS)
+  - `DISP-28E4A9-2026-0418` — Phil Connors (dispatch-initiated, contrast case)
+
+Peer-benchmark fixtures under [src/lib/fixtures/fleets/](src/lib/fixtures/fleets/) are checked in and loaded at runtime; they are not a seeding step.
 
 Utility scripts (not required to run the app):
 
@@ -69,13 +70,12 @@ Utility scripts (not required to run the app):
 npm run explore:api                       # one-off endpoint probes
 npm run inspect:fleet                     # dump a fleet's raw telematics tables
 npm run score:fleet                       # run the risk scorer against a fleet id
-npm run rehearse                          # walk the full demo path
 npx tsx scripts/validate-claim-fields.ts  # live field-by-field provenance proof
 ```
 
 ---
 
-## User guide — one section per service
+## User guide 
 
 ### Dashboard (`/`)
 

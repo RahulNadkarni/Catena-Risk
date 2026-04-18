@@ -9,6 +9,10 @@ import { createCatenaClientFromEnv } from "@/lib/catena/client";
 import { fetchWeatherAtIncident } from "@/lib/enrichment/weather";
 import { fetchRoadContext, reverseGeocode } from "@/lib/enrichment/roads";
 import { buildManifestEntry } from "@/lib/enrichment/manifest";
+import {
+  DEMO_DRIVER_NAME_OVERRIDES,
+  DEMO_INCIDENT_CONTEXT,
+} from "@/lib/fixtures/demo-driver-names";
 import { buildIncidentSummary } from "./narrative";
 import type {
   IncidentPacket,
@@ -907,6 +911,24 @@ export async function buildRealSingleIncidentPacket(
 
   if (opts?.dispatchVehicleId) {
     dispatchLiveLoc = liveLocations.find((l) => str(l, "vehicle_id") === opts.dispatchVehicleId) ?? null;
+    // Sandbox live-locations returns a shifting ~100-row subset per call. If
+    // this vehicle missed the first page, paginate up to 5 more pages before
+    // giving up — otherwise we lose the driver_name, current GPS, and fuel
+    // telemetry for any vehicle that wasn't in the initial batch.
+    if (!dispatchLiveLoc) {
+      let cursor: string | undefined;
+      for (let page = 0; page < 5; page++) {
+        const res = await client
+          .listVehicleLiveLocations({ size: 500, cursor })
+          .catch(() => null);
+        const items = (res?.items ?? []) as unknown[];
+        const hit = items.find((l) => str(l, "vehicle_id") === opts.dispatchVehicleId);
+        if (hit) { dispatchLiveLoc = hit; break; }
+        const next = (res as { next_page?: string | null } | null)?.next_page;
+        if (typeof next !== "string" || next.length === 0) break;
+        cursor = next;
+      }
+    }
     dispatchTspName = str(dispatchLiveLoc, "driver_name");
     vehicle = vehicles.find((v) => str(v, "id") === opts.dispatchVehicleId) ?? vehicles[0]!;
     // Find the Catena user whose id matches this vehicle's safety events, else fall back
@@ -952,14 +974,55 @@ export async function buildRealSingleIncidentPacket(
     const diff = Math.abs(new Date(occ).getTime() - incidentDate.getTime());
     if (diff < bestTimeDiff) { bestTimeDiff = diff; bestLocForIncident = l; }
   }
-  // Dispatch-initiated claim: use the driver's current GPS from the live location.
-  // Otherwise use the vehicle location ping closest to the incident time.
-  const dispatchCoords = dispatchLiveLoc ? geoPointSafe((dispatchLiveLoc as Record<string, unknown>).location) : null;
-  const coords = dispatchCoords ?? geoPointSafe(bestLocForIncident ? (bestLocForIncident as Record<string, unknown>).location : null);
+  // Resolve incident coordinates in priority order. Every source is real
+  // Catena data; we fall back through them so non-demo vehicles (which often
+  // lack historical location pings in the sandbox) still produce a packet.
+  //   1. Driver's current GPS from live-locations (dispatch-initiated claims)
+  //   2. Vehicle-location ping closest to the incident time
+  //   3. Most recent safety event for this driver/vehicle that carries GPS
+  //   4. Most recent HOS event for this vehicle that carries GPS
+  const dispatchCoords = dispatchLiveLoc
+    ? geoPointSafe((dispatchLiveLoc as Record<string, unknown>).location)
+    : null;
+  const bestLocCoords = bestLocForIncident
+    ? geoPointSafe((bestLocForIncident as Record<string, unknown>).location)
+    : null;
+
+  const coordsSource: ProvenanceSource = "catena_api";
+  let coordsNote: string | null = dispatchCoords
+    ? "From driver's live-location GPS"
+    : bestLocCoords
+      ? "From vehicle-location ping closest to incident time"
+      : null;
+  let coords: { lat: number; lng: number } | null = dispatchCoords ?? bestLocCoords;
+  if (!coords) {
+    for (const e of driverEvents) {
+      const c = geoPointSafe((e as Record<string, unknown>).location);
+      if (c) {
+        coords = c;
+        coordsNote = "Derived from most recent safety event — vehicle has no location pings";
+        break;
+      }
+    }
+  }
+  if (!coords) {
+    const vehicleHosEvents = hosEventRecords
+      .filter((e) => str(e, "vehicle_id") === vehicleId)
+      .sort((a, b) => (str(b, "started_at") ?? "").localeCompare(str(a, "started_at") ?? ""));
+    for (const e of vehicleHosEvents) {
+      const c = geoPointSafe((e as Record<string, unknown>).location);
+      if (c) {
+        coords = c;
+        coordsNote = "Derived from most recent HOS duty-status event with a location";
+        break;
+      }
+    }
+  }
   if (!coords) {
     throw new Error(
-      `Cannot build incident packet for ${claimNumber}: no GPS coordinates available from Catena vehicle-locations for this vehicle. ` +
-      `Try a different vehicle or driver with recent location pings.`,
+      `Cannot build incident packet for ${claimNumber}: no GPS coordinates available ` +
+      `from Catena for this vehicle — no live location, no vehicle-locations pings, ` +
+      `and no safety or HOS events carry a location. Try a different vehicle.`,
     );
   }
   const incidentLat = coords.lat;
@@ -1192,7 +1255,7 @@ export async function buildRealSingleIncidentPacket(
     prov("vehicleUnit", "catena_api"),
     prov("vehicleVin", "catena_api"),
     prov("incidentAt", mostRecentEvent ? "catena_api" : "synthetic", "Derived from most recent safety event timestamp"),
-    prov("incidentLat,incidentLng", coordsFromApi ? "catena_api" : "hardcoded", coordsFromApi ? "From Catena vehicle location ping" : "No location data in API"),
+    prov("incidentLat,incidentLng", coordsSource, coordsNote ?? "From Catena vehicle location ping"),
     prov("headingDeg", num(bestLocForIncident, "heading") != null ? "catena_api" : "synthetic"),
     prov("baseSpeed", speedFromApi ? "catena_api" : "synthetic", `${vehicleSpeedsMeaningful.length} meaningful speed pings from vehicle history`),
     prov("speedAtImpact", closestToImpact ? "catena_api" : "synthetic"),
@@ -1253,14 +1316,46 @@ export async function buildRealSingleIncidentPacket(
     ...(roadContext.source === "osm" ? [buildManifestEntry({ id: `osm-road`, fileName: `osm_road_context.json`, description: `OSM road context — way ${roadContext.osmWayId}`, source: "osm", data: roadContext, recordCount: 1 })] : []),
   ];
 
+  // Demo-driver overlay: when this claim is being generated for the pinned
+  // demo driver (single TSP id), replace the generic description with a
+  // curated narrative and force the display name. Every API-derived field
+  // (GPS, speed, HOS, DVIR, weather, road, safety events) is untouched — only
+  // fields the sandbox cannot provide are overlaid, and the provenance entry
+  // below flags that explicitly.
+  const incidentDriverTspId = str(dispatchLiveLoc, "driver_id");
+  const isDemoDriver = incidentDriverTspId
+    ? Object.prototype.hasOwnProperty.call(
+        DEMO_DRIVER_NAME_OVERRIDES,
+        incidentDriverTspId,
+      )
+    : false;
+  const finalDriverName = isDemoDriver && incidentDriverTspId
+    ? DEMO_DRIVER_NAME_OVERRIDES[incidentDriverTspId]!
+    : driverName;
+  const finalIncidentDescription = isDemoDriver
+    ? DEMO_INCIDENT_CONTEXT.incidentDescription
+    : incidentDescription;
+  if (isDemoDriver) {
+    provenance.push({
+      field: "incidentDescription",
+      source: "synthetic",
+      note: "Curated demo narrative — sandbox does not expose free-text incident description",
+    });
+    provenance.push({
+      field: "driverName",
+      source: "hardcoded",
+      note: "Pinned demo display name overlaid on real TSP driver_id",
+    });
+  }
+
   const packet: IncidentPacket = {
     claimNumber,
     incidentAt,
     incidentLocation,
     incidentLat,
     incidentLng,
-    incidentDescription,
-    driverName,
+    incidentDescription: finalIncidentDescription,
+    driverName: finalDriverName,
     driverId: driverId || null,
     vehicleUnit,
     vehicleId: vehicleId || null,

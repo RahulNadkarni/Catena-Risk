@@ -3,6 +3,7 @@
 import { createCatenaClientFromEnv } from "@/lib/catena/client";
 import { fetchWeatherAtIncident } from "@/lib/enrichment/weather";
 import { fetchRoadContext, reverseGeocode } from "@/lib/enrichment/roads";
+import { demoDriverNameFor, DEMO_DRIVER_NAME_OVERRIDES } from "@/lib/fixtures/demo-driver-names";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,38 @@ export interface DriverDetail {
     occurredAt: string;
     durationSeconds: number | null;
   }[];
+  /** Recent GPS trail for this vehicle (time-ordered, last 24h). Origin is the
+   *  first point, current is the last point — a real to/from derived from the
+   *  telematics stream, not approximated from HOS duty-status events. */
+  gpsTrail: { lat: number; lng: number; at: string; speedMph: number | null }[];
+  tripOriginFromTrail: TripPoint | null;
+  /** Straight-line distance from origin to current position, in miles. */
+  trailDistanceMi: number | null;
+  /** Engine on/off / ignition events from listEngineLogs (last 24h). */
+  engineEvents: {
+    id: string;
+    eventType: string;
+    occurredAt: string;
+    locationName: string | null;
+    odometerMi: number | null;
+  }[];
+  /** Per-vehicle analytics summary (30d) from listVehicleSummaries. */
+  vehicleSummary: {
+    safetyEvents30d: number | null;
+    hosViolations30d: number | null;
+    distanceMi30d: number | null;
+    driveHours30d: number | null;
+    fuelGallons30d: number | null;
+  } | null;
+  /** IFTA state-by-state mileage (best-effort; null if endpoint unavailable). */
+  iftaSummary: { jurisdiction: string; distanceMi: number | null; fuelGallons: number | null }[];
+  /** Sensor anomalies (harsh events, speeding spikes) per listVehicleSensorEvents (best-effort). */
+  sensorEvents: {
+    id: string;
+    eventType: string;
+    occurredAt: string;
+    severity: string | null;
+  }[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -183,13 +216,74 @@ function formatTspName(raw: string | null): string | null {
   return raw.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Build a TripPoint from a HOS event record (cityName filled in later) */
+/**
+ * Find a specific vehicle's live-location row by paginating the live-locations
+ * endpoint. The sandbox simulator returns a different ~100 rows per call, so a
+ * single `size: 100` fetch can miss a vehicle that was on the dispatch board
+ * seconds earlier. Paginates up to ~2500 rows (5 × 500) before giving up.
+ */
+async function findLiveLocationForVehicle(
+  client: ReturnType<typeof createCatenaClientFromEnv>,
+  vehicleId: string,
+): Promise<{
+  liveLoc: unknown | null;
+  allLocations: unknown[];
+}> {
+  const allLocations: unknown[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const res = await client.listVehicleLiveLocations({ size: 500, cursor });
+    const items = (res?.items ?? []) as unknown[];
+    allLocations.push(...items);
+    const hit = items.find((l) => str(l, "vehicle_id") === vehicleId);
+    if (hit) return { liveLoc: hit, allLocations };
+    const next = (res as { next_page?: string | null })?.next_page;
+    if (typeof next !== "string" || next.length === 0) break;
+    cursor = next;
+  }
+  return { liveLoc: null, allLocations };
+}
+
+/** Build a TripPoint from a HOS event record. `cityName` is filled in from
+ * `inferred_address` on the event row if the API provides it, so the dispatch
+ * board can skip reverse-geocoding. */
 function hosEventToTripPoint(e: unknown): TripPoint | null {
   const coords = geoJsonLatLng(e);
   if (!coords) return null;
   const at = str(e, "started_at") ?? str(e, "occurred_at");
   if (!at) return null;
-  return { ...coords, locationName: str(e, "location_name"), at, cityName: null };
+  return {
+    ...coords,
+    locationName: str(e, "location_name"),
+    at,
+    cityName: inferredCity(e),
+  };
+}
+
+/** Best-effort "City, State" derived from a row's `inferred_address`. */
+function inferredCity(obj: unknown): string | null {
+  if (!obj || typeof obj !== "object") return null;
+  const addr = (obj as Record<string, unknown>).inferred_address as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  if (!addr || typeof addr !== "object") return null;
+  const city =
+    typeof addr.city === "string"
+      ? addr.city
+      : typeof addr.locality === "string"
+        ? addr.locality
+        : null;
+  const region =
+    typeof addr.province === "string"
+      ? addr.province
+      : typeof addr.region === "string"
+        ? addr.region
+        : typeof addr.state === "string"
+          ? addr.state
+          : null;
+  if (city && region) return `${city}, ${region}`;
+  return city ?? region ?? null;
 }
 
 // ── Main action ──────────────────────────────────────────────────────────────
@@ -201,19 +295,92 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
   // Primary: live locations are the authoritative driver list.
   // HOS avail driver_id === live location driver_id (TSP namespace).
   // Vehicle_id is the join key to safety events and HOS events.
-  const [liveLocRes, hosAvailRes, hosViolRes, safetyRes, hosEvtRes] = await Promise.all([
-    client.listVehicleLiveLocations({ size: 100 }),
-    client.listHosAvailabilities({ size: 100 }),
-    client.listHosViolations({ size: 200 }),
-    client.listDriverSafetyEvents({ size: 100 }),
-    client.listHosEvents({ size: 200 }).catch(() => null),
-  ]);
+  // Driver summaries supply first/last name for any driver the live-locations
+  // stream reports as synthetic "user_xxxxxxxx" — turns ~half the board from
+  // "Driver abcd1234" placeholders into real names without extra calls.
+  const [liveLocRes, hosAvailRes, hosViolRes, safetyRes, hosEvtRes, driverSummRes] =
+    await Promise.all([
+      client.listVehicleLiveLocations({ size: 100 }),
+      client.listHosAvailabilities({ size: 100 }),
+      client.listHosViolations({ size: 200 }),
+      client.listDriverSafetyEvents({ size: 100 }),
+      client.listHosEvents({ size: 200 }).catch(() => null),
+      client.listDriverSummaries({ size: 200 }).catch(() => null),
+    ]);
 
   const liveLocations = (liveLocRes?.items ?? []) as unknown[];
+
+  // If the pinned demo driver(s) aren't in the first page, paginate until
+  // found. The sandbox returns a shifting ~100-row subset per call, so the
+  // overlay driver otherwise disappears from the board depending on where
+  // she lands in the stream at query time.
+  const demoIds = Object.keys(DEMO_DRIVER_NAME_OVERRIDES);
+  const presentIds = new Set(
+    liveLocations.map((l) => str(l, "driver_id")).filter(Boolean),
+  );
+  const missingDemoIds = demoIds.filter((id) => !presentIds.has(id));
+  if (missingDemoIds.length > 0) {
+    let cursor =
+      typeof (liveLocRes as { next_page?: string | null } | null | undefined)?.next_page ===
+        "string" && (liveLocRes as { next_page?: string }).next_page!.length > 0
+        ? (liveLocRes as { next_page: string }).next_page
+        : undefined;
+    const stillMissing = new Set(missingDemoIds);
+    for (let page = 0; page < 5 && stillMissing.size > 0 && cursor; page++) {
+      const res = await client
+        .listVehicleLiveLocations({ size: 500, cursor })
+        .catch(() => null);
+      const items = (res?.items ?? []) as unknown[];
+      for (const row of items) {
+        const did = str(row, "driver_id");
+        if (did && stillMissing.has(did)) {
+          liveLocations.push(row);
+          stillMissing.delete(did);
+        }
+      }
+      const next = (res as { next_page?: string | null } | null)?.next_page;
+      cursor = typeof next === "string" && next.length > 0 ? next : undefined;
+    }
+  }
   const hosAvails = (hosAvailRes?.items ?? []) as unknown[];
   const hosViolations = (hosViolRes?.items ?? []) as unknown[];
   const safetyEvents = (safetyRes?.items ?? []) as unknown[];
   const hosEvents = ((hosEvtRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const driverSummaries =
+    ((driverSummRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+
+  // Index driver summaries by TSP driver_id (user_id == live_loc.driver_id).
+  // Used to resolve real first/last names for "user_..." placeholder entries.
+  const summaryByTspId = new Map<string, unknown>();
+  for (const s of driverSummaries) {
+    const uid = str(s, "user_id");
+    if (uid) summaryByTspId.set(uid, s);
+  }
+  const resolveDriverName = (
+    tspDriverId: string,
+    rawLiveLocName: string | null,
+  ): string | null => {
+    const fromLive = formatTspName(rawLiveLocName);
+    if (fromLive) return fromLive;
+    // Single-driver demo overlay — pins a human name to one real sandbox
+    // driver_id so presentations always have at least one fully-named hero
+    // card. Data for this driver is still 100% live from Catena.
+    const overlay = demoDriverNameFor(tspDriverId);
+    if (overlay) return overlay;
+    const summary = summaryByTspId.get(tspDriverId);
+    if (summary) {
+      const first = str(summary, "first_name");
+      const last = str(summary, "last_name");
+      const isSynthetic = !first || first.startsWith("Driver_") || first.startsWith("driver_");
+      if (!isSynthetic && first && last) return `${first} ${last}`;
+      if (!isSynthetic && first) return first;
+      const username = str(summary, "username");
+      if (username && !username.startsWith("user_")) {
+        return username.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+    }
+    return null;
+  };
 
   // Index HOS avails by TSP driver_id (same as their id)
   const hosAvailByTspId = new Map<string, unknown>();
@@ -262,26 +429,27 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
       .filter(Boolean),
   );
 
-  // Build driver status from live locations. Filter to the STABLE set:
-  //   - Real TSP driver name (e.g. "ned.ryerson"), OR
-  //   - Matching HOS availability record
-  // HOS events are excluded from the filter — they stream in continuously in the
-  // sandbox, so a filter based on them would add/remove drivers between page
-  // refreshes. The two criteria above are stable across calls.
+  // Build driver status from live locations. Filter to a STABLE, NAMED set:
+  // only include drivers whose identity resolves to a real human name from at
+  // least one source (live-location driver_name, demo overlay, or
+  // driver_summary first/last). This drops synthetic "Driver abcd1234"
+  // placeholders that otherwise cycle across page loads as the simulator
+  // shuffles its live-location stream.
   const driverStatuses: DriverHosStatus[] = [];
+  const seenTspIds = new Set<string>();
   for (const liveLoc of liveLocations) {
     const vehicleId = str(liveLoc, "vehicle_id");
     if (!vehicleId) continue;
 
     const tspDriverId = str(liveLoc, "driver_id");
     if (!tspDriverId) continue;
+    if (seenTspIds.has(tspDriverId)) continue;
 
     const rawName = str(liveLoc, "driver_name");
-    const hasRealName = !!rawName && !rawName.startsWith("user_");
+    const driverName = resolveDriverName(tspDriverId, rawName);
+    if (!driverName) continue;
+    seenTspIds.add(tspDriverId);
     const hos = hosAvailByTspId.get(tspDriverId) ?? null;
-    if (!hasRealName && !hos) continue;
-
-    const driverName = formatTspName(rawName) ?? `Driver ${tspDriverId.slice(0, 8)}`;
     const vehicleName = str(liveLoc, "vehicle_name");
     const vehicleUnit = vehicleName ?? vehicleId.slice(0, 8);
     const dutyCode = str(hos, "duty_status_code"); // null → "Unknown" (no HOS match)
@@ -334,34 +502,13 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
       fuelPct,
       tripOrigin: tripOriginByVehicle.get(vehicleId) ?? null,
       lastDrivingPoint: lastDrivingByVehicle.get(vehicleId) ?? null,
-      currentCity: null,  // populated in parallel below
-      currentRoad: null,  // populated in parallel for Driving drivers
+      // Use the API-provided `inferred_address` when present — avoids 100+
+      // Nominatim round-trips per page load. The driver detail page does live
+      // reverse-geocoding on click for richer context.
+      currentCity: inferredCity(liveLoc),
+      currentRoad: null,
     });
   }
-
-  // Enrich each driver with reverse-geocoded city; road context only for Driving drivers.
-  // 2s hard budget so the board stays fast. Subsequent loads use in-memory caches.
-  const boardBudgetMs = 2_000;
-  const withBoardBudget = <T>(p: Promise<T>): Promise<T | null> =>
-    Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), boardBudgetMs))]);
-  await Promise.all(
-    driverStatuses.map(async (d) => {
-      if (d.lat == null || d.lng == null) return;
-      const isDriving = d.dutyStatus.toLowerCase() === "driving";
-      const [city, road] = await Promise.all([
-        withBoardBudget(reverseGeocode(d.lat, d.lng).catch(() => null)),
-        isDriving ? withBoardBudget(fetchRoadContext(d.lat, d.lng, null).catch(() => null)) : Promise.resolve(null),
-      ]);
-      d.currentCity = city;
-      if (road && road.source === "osm") {
-        d.currentRoad = {
-          roadName: road.roadName,
-          classification: road.roadClassification,
-          speedLimitMph: road.postedSpeedLimitMph,
-        };
-      }
-    }),
-  );
 
   // Recent safety events (last 24h)
   const cutoff = Date.now() - 24 * 3600_000;
@@ -439,8 +586,27 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
 export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail | null> {
   const client = createCatenaClientFromEnv();
 
-  const [liveLocRes, hosAvailRes, hosViolRes, safetyRes, hosEvtRes, hosSnapRes, driverSummRes, vehiclesRes, dvirRes] = await Promise.all([
-    client.listVehicleLiveLocations({ size: 100 }),
+  // Paginate live-locations until we find this vehicle (sandbox returns a
+  // shifting subset per call). Run in parallel with the rest of the fetches.
+  const liveLocLookupPromise = findLiveLocationForVehicle(client, vehicleId);
+
+  const [
+    liveLocLookup,
+    hosAvailRes,
+    hosViolRes,
+    safetyRes,
+    hosEvtRes,
+    hosSnapRes,
+    driverSummRes,
+    vehiclesRes,
+    dvirRes,
+    vehLocRes,
+    engineLogRes,
+    vehSummRes,
+    iftaRes,
+    sensorRes,
+  ] = await Promise.all([
+    liveLocLookupPromise,
     client.listHosAvailabilities({ size: 100 }),
     client.listHosViolations({ size: 200 }),
     client.listDriverSafetyEvents({ size: 200 }),
@@ -449,9 +615,28 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
     client.listDriverSummaries({ size: 100 }).catch(() => null),
     client.listVehicles({ size: 200 }).catch(() => null),
     client.listDvirLogs({ size: 100 }).catch(() => null),
+    // Additional per-driver enrichment — each is best-effort. Sandbox may 5xx
+    // on some of these (COVERAGE.md notes vehicle-locations / ifta / sensor
+    // events can return ERROR); callers render "—" in that case.
+    client
+      .listVehicleLocations({
+        size: 500,
+        from_datetime: new Date(Date.now() - 24 * 3600_000).toISOString(),
+        to_datetime: new Date().toISOString(),
+      })
+      .catch(() => null),
+    client
+      .listEngineLogs({
+        size: 200,
+        from_datetime: new Date(Date.now() - 24 * 3600_000).toISOString(),
+        to_datetime: new Date().toISOString(),
+      })
+      .catch(() => null),
+    client.listVehicleSummaries({ size: 200 }).catch(() => null),
+    client.listIftaSummaries({ size: 50 }).catch(() => null),
+    client.listVehicleSensorEvents({ size: 200 }).catch(() => null),
   ]);
 
-  const liveLocations = (liveLocRes?.items ?? []) as unknown[];
   const hosAvails = (hosAvailRes?.items ?? []) as unknown[];
   const hosViolations = (hosViolRes?.items ?? []) as unknown[];
   const safetyEvents = (safetyRes?.items ?? []) as unknown[];
@@ -460,9 +645,16 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
   const driverSummariesRaw = ((driverSummRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
   const vehiclesRaw = ((vehiclesRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
   const dvirRaw = ((dvirRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const vehLocRaw = ((vehLocRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const engineLogRaw = ((engineLogRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const vehSummRaw = ((vehSummRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const iftaRaw = ((iftaRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const sensorRaw = ((sensorRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
 
-  // Find this vehicle's live location
-  const liveLoc = liveLocations.find((loc) => str(loc, "vehicle_id") === vehicleId);
+  // Use the live-loc returned by the paginated lookup (already scanned up to
+  // ~2500 rows of the sandbox stream). If still null, the vehicle genuinely
+  // has no live-location row right now.
+  const liveLoc = liveLocLookup.liveLoc;
   if (!liveLoc) return null;
 
   const tspDriverId = str(liveLoc, "driver_id");
@@ -668,6 +860,118 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
       };
     });
 
+  // GPS trail for this vehicle (last 24h, time-ordered oldest → newest).
+  // Provides a real trip origin + current position, not just inferred from
+  // HOS duty-status transitions.
+  const gpsTrail: DriverDetail["gpsTrail"] = vehLocRaw
+    .filter((r) => str(r, "vehicle_id") === vehicleId)
+    .map((r) => {
+      const c = geoJsonLatLng(r);
+      const at = str(r, "occurred_at");
+      if (!c || !at) return null;
+      const rawSpeed = num(r, "speed");
+      const speedMph =
+        rawSpeed != null ? Math.round(rawSpeed * 2.23694 * 10) / 10 : null;
+      return { lat: c.lat, lng: c.lng, at, speedMph };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(0, 100);
+
+  let tripOriginFromTrail: TripPoint | null = null;
+  if (gpsTrail.length > 0) {
+    const first = gpsTrail[0];
+    const originCity = await reverseGeocode(first.lat, first.lng).catch(() => null);
+    tripOriginFromTrail = {
+      lat: first.lat,
+      lng: first.lng,
+      locationName: null,
+      at: first.at,
+      cityName: originCity,
+    };
+  }
+
+  // Straight-line distance between trail origin and current position (miles).
+  // Approximation — not the road distance. Useful as a rough "how far traveled."
+  let trailDistanceMi: number | null = null;
+  if (tripOriginFromTrail && lat != null && lng != null) {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const R = 3958.8;
+    const dLat = toRad(lat - tripOriginFromTrail.lat);
+    const dLng = toRad(lng - tripOriginFromTrail.lng);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(tripOriginFromTrail.lat)) *
+        Math.cos(toRad(lat)) *
+        Math.sin(dLng / 2) ** 2;
+    trailDistanceMi = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+  }
+
+  // Engine on/off / ignition events for this vehicle (last 24h).
+  const engineEvents: DriverDetail["engineEvents"] = engineLogRaw
+    .filter((e) => str(e, "vehicle_id") === vehicleId)
+    .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""))
+    .slice(0, 20)
+    .map((e) => {
+      const rawOd = num(e, "odometer");
+      return {
+        id: str(e, "id") ?? `eng-${Math.random()}`,
+        eventType: (str(e, "event") ?? str(e, "event_type") ?? "event").replace(/_/g, " "),
+        occurredAt: str(e, "occurred_at") ?? "",
+        locationName: str(e, "location_name"),
+        odometerMi: rawOd != null ? Math.round(rawOd / 1609.344) : null,
+      };
+    });
+
+  // Per-vehicle analytics summary (30d rollup).
+  const vehSummRec = vehSummRaw.find(
+    (v) => str(v, "vehicle_id") === vehicleId || str(v, "id") === vehicleId,
+  );
+  const vehicleSummary: DriverDetail["vehicleSummary"] = vehSummRec
+    ? {
+        safetyEvents30d:
+          num(vehSummRec, "safety_events_30d") ?? num(vehSummRec, "safety_events"),
+        hosViolations30d:
+          num(vehSummRec, "hos_violations_30d") ?? num(vehSummRec, "hos_violations"),
+        distanceMi30d: (() => {
+          const m = num(vehSummRec, "distance_meters_30d") ?? num(vehSummRec, "distance_meters");
+          return m != null ? Math.round(m / 1609.344) : null;
+        })(),
+        driveHours30d: (() => {
+          const s = num(vehSummRec, "drive_seconds_30d") ?? num(vehSummRec, "drive_seconds");
+          return s != null ? Math.round((s / 3600) * 10) / 10 : null;
+        })(),
+        fuelGallons30d:
+          num(vehSummRec, "fuel_gallons_30d") ?? num(vehSummRec, "fuel_gallons"),
+      }
+    : null;
+
+  // IFTA jurisdiction summary for this vehicle (state-by-state mileage).
+  const iftaSummary: DriverDetail["iftaSummary"] = iftaRaw
+    .filter((r) => str(r, "vehicle_id") === vehicleId)
+    .slice(0, 20)
+    .map((r) => {
+      const distM = num(r, "distance_meters");
+      return {
+        jurisdiction:
+          str(r, "jurisdiction") ?? str(r, "state") ?? str(r, "province") ?? "—",
+        distanceMi: distM != null ? Math.round(distM / 1609.344) : null,
+        fuelGallons: num(r, "fuel_gallons"),
+      };
+    });
+
+  // Sensor anomalies (harsh events, speeding spikes, etc.).
+  const sensorEvents: DriverDetail["sensorEvents"] = sensorRaw
+    .filter((e) => str(e, "vehicle_id") === vehicleId)
+    .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""))
+    .slice(0, 20)
+    .map((e) => ({
+      id: str(e, "id") ?? `sens-${Math.random()}`,
+      eventType: (str(e, "event") ?? str(e, "event_type") ?? "sensor").replace(/_/g, " "),
+      occurredAt: str(e, "occurred_at") ?? "",
+      severity: str(e, "severity"),
+    }));
+
   // HOS violations history for this driver (last 30 days)
   const thirtyDaysAgo = Date.now() - 30 * 24 * 3600_000;
   const hosViolationsList: DriverDetail["hosViolationsList"] = tspDriverId
@@ -738,5 +1042,12 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
     vehicle: vehicleInfo,
     dvirLogs,
     hosViolationsList,
+    gpsTrail,
+    tripOriginFromTrail,
+    trailDistanceMi,
+    engineEvents,
+    vehicleSummary,
+    iftaSummary,
+    sensorEvents,
   };
 }

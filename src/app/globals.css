@@ -10,10 +10,10 @@
     --font-sans: var(--font-sans);
   }
   :root {
-    /* Keystone brand surfaces (navy / slate) */
-    --keystone: oklch(0.28 0.055 250);
-    --keystone-muted: oklch(0.96 0.012 250);
-    --keystone-foreground: oklch(0.985 0.01 250);
+    /* Brand surfaces (navy / slate) */
+    --brand: oklch(0.28 0.055 250);
+    --brand-muted: oklch(0.96 0.012 250);
+    --brand-foreground: oklch(0.985 0.01 250);
     --surface-elevated: oklch(0.99 0.008 250);
     /* Semantic accents */
     --success: oklch(0.58 0.14 155);
@@ -29,11 +29,11 @@
     --card-foreground: oklch(0.2 0.03 250);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: var(--keystone);
-    --primary-foreground: var(--keystone-foreground);
+    --primary: var(--brand);
+    --primary-foreground: var(--brand-foreground);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
-    --muted: var(--keystone-muted);
+    --muted: var(--brand-muted);
     --muted-foreground: oklch(0.45 0.03 250);
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
@@ -116,8 +116,8 @@
   .text-danger {
     color: var(--danger);
   }
-  .bg-keystone {
-    background-color: var(--keystone);
-    color: var(--keystone-foreground);
+  .bg-brand {
+    background-color: var(--brand);
+    color: var(--brand-foreground);
   }
 }

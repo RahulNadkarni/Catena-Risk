@@ -30,7 +30,7 @@ export async function GET(
   }
   const pdf = Buffer.concat(chunks);
 
-  const name = `keystone-underwriting-${params.submissionId.slice(0, 8)}.pdf`;
+  const name = `underwriting-${params.submissionId.slice(0, 8)}.pdf`;
   return new NextResponse(pdf, {
     headers: {
       "Content-Type": "application/pdf",

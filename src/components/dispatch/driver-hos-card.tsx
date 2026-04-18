@@ -85,18 +85,25 @@ export function DriverHosCard({ driver }: { driver: DriverHosStatus }) {
           <p className="text-xs text-muted-foreground">Break required in {driver.hoursUntilBreak.toFixed(1)}h</p>
         )}
       </div>
-      {(driver.currentCity || driver.lat != null || driver.currentRoad) && (
+      {(driver.tripOrigin || driver.currentCity || driver.lat != null) && (
         <div className="border-t border-border/50 pt-2 space-y-1">
-          {driver.currentCity && (
-            <p className="text-xs text-muted-foreground truncate">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-400 mr-1.5 align-middle" />
-              {driver.currentCity}
-            </p>
+          {driver.tripOrigin && (
+            <TripRow
+              label="From"
+              dotClass="bg-emerald-500"
+              primary={driver.tripOrigin.cityName ?? driver.tripOrigin.locationName}
+              lat={driver.tripOrigin.lat}
+              lng={driver.tripOrigin.lng}
+            />
           )}
-          {driver.lat != null && driver.lng != null && (
-            <p className="text-[10px] text-muted-foreground/70 truncate font-mono ml-3">
-              {driver.lat.toFixed(4)}°, {driver.lng.toFixed(4)}°
-            </p>
+          {(driver.currentCity || driver.lat != null) && (
+            <TripRow
+              label="Now"
+              dotClass="bg-orange-400"
+              primary={driver.currentCity ?? driver.lastDrivingPoint?.locationName ?? null}
+              lat={driver.lat}
+              lng={driver.lng}
+            />
           )}
           {driver.currentRoad && (driver.currentRoad.roadName || driver.currentRoad.speedLimitMph != null) && (
             <p className="text-xs text-muted-foreground truncate">
@@ -106,6 +113,36 @@ export function DriverHosCard({ driver }: { driver: DriverHosStatus }) {
             </p>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function TripRow({
+  label,
+  dotClass,
+  primary,
+  lat,
+  lng,
+}: {
+  label: string;
+  dotClass: string;
+  primary: string | null | undefined;
+  lat: number | null;
+  lng: number | null;
+}) {
+  const hasCoords = lat != null && lng != null;
+  return (
+    <div className="text-xs text-muted-foreground">
+      <p className="truncate">
+        <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1.5 align-middle ${dotClass}`} />
+        <span className="font-medium text-foreground/80 mr-1">{label}</span>
+        {primary ?? (hasCoords ? `${lat!.toFixed(4)}°, ${lng!.toFixed(4)}°` : "—")}
+      </p>
+      {primary && hasCoords && (
+        <p className="text-[10px] text-muted-foreground/70 truncate font-mono ml-5">
+          {lat!.toFixed(4)}°, {lng!.toFixed(4)}°
+        </p>
       )}
     </div>
   );

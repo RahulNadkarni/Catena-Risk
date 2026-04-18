@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Truck, Users, AlertTriangle, Activity, BarChart2 } from "lucide-react";
+import { ArrowLeft, Truck, Users, AlertTriangle, Activity, BarChart2, Container } from "lucide-react";
 import { format } from "date-fns";
 import { fetchFleetDetail } from "@/lib/catena/fleet-detail";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,7 +64,7 @@ export default async function FleetDetailPage({ params }: { params: { fleetId: s
       </div>
 
       {/* KPI tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -74,6 +74,19 @@ export default async function FleetDetailPage({ params }: { params: { fleetId: s
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tabular-nums">{fleet.vehicleCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Container className="h-4 w-4 text-muted-foreground" />
+              Trailers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold tabular-nums">
+              {fleet.trailerCount ?? "—"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -211,11 +224,17 @@ export default async function FleetDetailPage({ params }: { params: { fleetId: s
                     <Badge variant="outline" className={`text-xs shrink-0 ${eventBadgeColor(e.eventType)}`}>{e.eventType}</Badge>
                     <Link
                       href={`/portfolio/drivers/${encodeURIComponent(e.driverId)}`}
-                      className="text-xs text-primary hover:underline font-mono truncate"
+                      className="min-w-0 truncate hover:underline"
                     >
-                      {e.driverId.slice(0, 8)}
+                      <span className="text-sm font-medium text-primary">
+                        {e.driverName ?? "Unnamed driver"}
+                      </span>
+                      {e.driverId && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground/60 font-mono tabular-nums">
+                          {e.driverId.slice(0, 8)}
+                        </span>
+                      )}
                     </Link>
-                    <span className="text-xs text-muted-foreground font-mono shrink-0">veh {e.vehicleId.slice(0, 8)}</span>
                     {e.durationSeconds != null && <span className="text-xs text-muted-foreground">{e.durationSeconds}s</span>}
                   </div>
                   <span className="text-xs text-muted-foreground tabular-nums shrink-0">

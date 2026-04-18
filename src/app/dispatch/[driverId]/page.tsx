@@ -121,7 +121,26 @@ export default async function DriverDetailPage({
   const detail = await fetchDriverDetail(decodeURIComponent(driverId));
   if (!detail) notFound();
 
-  const { driver, allEventsForDriver, weather, roadContext, currentCity, hosEvents, todaySnapshot, driverSummary, vehicle, dvirLogs, hosViolationsList } = detail;
+  const {
+    driver,
+    allEventsForDriver,
+    weather,
+    roadContext,
+    currentCity,
+    hosEvents,
+    todaySnapshot,
+    driverSummary,
+    vehicle,
+    dvirLogs,
+    hosViolationsList,
+    gpsTrail,
+    tripOriginFromTrail,
+    trailDistanceMi,
+    engineEvents,
+    vehicleSummary,
+    iftaSummary,
+    sensorEvents,
+  } = detail;
 
   // Generate demo claim number: DISP-{first6ofDriverId}-{date}
   const today = new Date();
@@ -202,17 +221,36 @@ export default async function DriverDetailPage({
             </Card>
 
             {/* Trip origin → destination */}
-            {(driver.tripOrigin || driver.lastDrivingPoint) && (
+            {(driver.tripOrigin || driver.lastDrivingPoint || tripOriginFromTrail) && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Navigation className="h-4 w-4 text-muted-foreground" />
                     Trip route
                   </CardTitle>
-                  <CardDescription>From ELD-recorded duty status changes via Catena HOS events</CardDescription>
+                  <CardDescription>
+                    GPS trail + HOS duty-status changes via <code className="text-xs">listVehicleLocations</code> / <code className="text-xs">listHosEvents</code>
+                    {trailDistanceMi != null && ` · ${trailDistanceMi.toLocaleString()} mi from origin`}
+                    {gpsTrail.length > 0 && ` · ${gpsTrail.length} GPS points (24h)`}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
+                    {tripOriginFromTrail && (
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1.5 h-2.5 w-2.5 rounded-full bg-teal-500 shrink-0 ring-2 ring-teal-200" />
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trail origin (24h GPS)</p>
+                          <p className="text-sm font-semibold">
+                            {tripOriginFromTrail.cityName ?? "Reverse geocode unavailable"}
+                          </p>
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {tripOriginFromTrail.lat.toFixed(4)}°N, {Math.abs(tripOriginFromTrail.lng).toFixed(4)}°W
+                          </p>
+                          <p className="text-xs text-muted-foreground">{fmtTime(tripOriginFromTrail.at)}</p>
+                        </div>
+                      </div>
+                    )}
                     {driver.tripOrigin && (
                       <div className="flex items-start gap-3">
                         <div className="mt-1.5 h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-200" />
@@ -331,6 +369,61 @@ export default async function DriverDetailPage({
                       </span>
                     )}
                   </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Vehicle performance (30d) — from listVehicleSummaries */}
+            {vehicleSummary && (
+              vehicleSummary.safetyEvents30d != null ||
+              vehicleSummary.hosViolations30d != null ||
+              vehicleSummary.distanceMi30d != null ||
+              vehicleSummary.driveHours30d != null ||
+              vehicleSummary.fuelGallons30d != null
+            ) && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BarChart2 className="h-4 w-4 text-muted-foreground" />
+                    Vehicle performance (30d)
+                  </CardTitle>
+                  <CardDescription>via <code className="text-xs">listVehicleSummaries</code></CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-3 text-sm">
+                    {vehicleSummary.distanceMi30d != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Distance</p>
+                        <p className="font-medium tabular-nums">{vehicleSummary.distanceMi30d.toLocaleString()} mi</p>
+                      </div>
+                    )}
+                    {vehicleSummary.driveHours30d != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Drive time</p>
+                        <p className="font-medium tabular-nums">{vehicleSummary.driveHours30d.toLocaleString()} h</p>
+                      </div>
+                    )}
+                    {vehicleSummary.fuelGallons30d != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Fuel</p>
+                        <p className="font-medium tabular-nums">{vehicleSummary.fuelGallons30d.toLocaleString()} gal</p>
+                      </div>
+                    )}
+                    {vehicleSummary.safetyEvents30d != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Safety events</p>
+                        <p className="font-medium tabular-nums">{vehicleSummary.safetyEvents30d.toLocaleString()}</p>
+                      </div>
+                    )}
+                    {vehicleSummary.hosViolations30d != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">HOS violations</p>
+                        <p className={`font-medium tabular-nums ${vehicleSummary.hosViolations30d > 0 ? "text-red-600" : ""}`}>
+                          {vehicleSummary.hosViolations30d.toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -541,6 +634,95 @@ export default async function DriverDetailPage({
                 )}
               </CardContent>
             </Card>
+
+            {/* Engine activity — from listEngineLogs (24h) */}
+            {engineEvents.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                    Engine activity (24h)
+                  </CardTitle>
+                  <CardDescription>
+                    {engineEvents.length} engine event{engineEvents.length !== 1 ? "s" : ""} · via <code className="text-xs">listEngineLogs</code>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {engineEvents.map((e) => (
+                      <div key={e.id} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0 text-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Badge variant="outline" className="text-xs shrink-0 capitalize">{e.eventType}</Badge>
+                          {e.locationName && (
+                            <span className="text-xs text-muted-foreground truncate">{e.locationName}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {e.odometerMi != null && (
+                            <span className="text-xs text-muted-foreground/70 tabular-nums">{e.odometerMi.toLocaleString()} mi</span>
+                          )}
+                          <span className="text-xs text-muted-foreground tabular-nums">{fmtTime(e.occurredAt)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Sensor anomalies — from listVehicleSensorEvents */}
+            {sensorEvents.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    Sensor events
+                  </CardTitle>
+                  <CardDescription>
+                    {sensorEvents.length} sensor anomal{sensorEvents.length !== 1 ? "ies" : "y"} · via <code className="text-xs">listVehicleSensorEvents</code>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {sensorEvents.map((e) => (
+                      <div key={e.id} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0 text-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Badge variant="outline" className="text-xs shrink-0 capitalize">{e.eventType}</Badge>
+                          {e.severity && <span className="text-xs text-muted-foreground">{e.severity}</span>}
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">{fmtTime(e.occurredAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* IFTA by jurisdiction */}
+            {iftaSummary.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    Mileage by jurisdiction (IFTA)
+                  </CardTitle>
+                  <CardDescription>via <code className="text-xs">listIftaSummaries</code></CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {iftaSummary.map((r, idx) => (
+                      <div key={`${r.jurisdiction}-${idx}`} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0 text-sm">
+                        <span className="font-medium">{r.jurisdiction}</span>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground tabular-nums">
+                          {r.distanceMi != null && <span>{r.distanceMi.toLocaleString()} mi</span>}
+                          {r.fuelGallons != null && <span>{r.fuelGallons.toLocaleString()} gal</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Right column */}

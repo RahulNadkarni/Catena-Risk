@@ -16,12 +16,8 @@
     "start": "node ./node_modules/next/dist/bin/next start",
     "lint": "node ./node_modules/next/dist/bin/next lint",
     "explore:api": "npx tsx scripts/explore-api.ts",
-    "seed:fixtures": "npx tsx scripts/seed-fixtures.ts",
     "inspect:fleet": "npx tsx scripts/inspect-fleet.ts",
     "score:fleet": "npx tsx scripts/score-fleet.ts",
-    "seed:claims": "npx tsx scripts/seed-claims.ts",
-    "seed:real": "npx tsx scripts/seed-real-claim.ts",
-    "rehearse": "npx tsx scripts/rehearse.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

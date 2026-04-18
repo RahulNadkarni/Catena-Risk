@@ -23,8 +23,8 @@ export function AppShell({ children, rightRail, className }: AppShellProps) {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-8">
             <Link href="/" className="font-semibold tracking-tight text-foreground">
-              Keystone
-              <span className="text-muted-foreground font-normal"> · Risk workbench</span>
+              Risk workbench
+              <span className="text-muted-foreground font-normal"> · Catena</span>
             </Link>
             <nav className="hidden items-center gap-1 sm:flex" aria-label="Primary">
               {nav.map((item) => (

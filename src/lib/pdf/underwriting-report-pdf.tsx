@@ -88,7 +88,7 @@ function Header({ title, page, total, generatedAt }: { title: string; page: numb
   return (
     <View style={styles.header}>
       <View>
-        <Text style={styles.headerTitle}>Keystone Risk Workbench</Text>
+        <Text style={styles.headerTitle}>Catena Risk Workbench</Text>
         <Text style={styles.headerSub}>{title}</Text>
       </View>
       <View style={{ alignItems: "flex-end" }}>
@@ -132,7 +132,7 @@ export function UnderwritingReportPDF({ score, prospect, dossier, apiTrace }: Pr
   const activeTrace = apiTrace.filter((e) => e.ms > 0 && e.status === 200);
 
   return (
-    <Document title={`Underwriting Report — ${prospect.legalName ?? "Fleet"}`} creator="Keystone Risk Workbench">
+    <Document title={`Underwriting Report — ${prospect.legalName ?? "Fleet"}`} creator="Catena Risk Workbench">
 
       {/* Page 1: Cover */}
       <Page size="LETTER" style={styles.page}>

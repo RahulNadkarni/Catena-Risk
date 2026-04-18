@@ -19,7 +19,7 @@ export default function HomePage() {
     <AppShell>
       <div className="space-y-10">
         <section className="rounded-xl border border-border bg-gradient-to-br from-card to-muted/40 p-8 shadow-sm">
-          <p className="text-primary text-sm font-medium uppercase tracking-wide">Keystone underwriting</p>
+          <p className="text-primary text-sm font-medium uppercase tracking-wide">Commercial auto underwriting</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
             Commercial auto risk intelligence
           </h1>
@@ -37,9 +37,6 @@ export default function HomePage() {
             </Link>
             <Link href="/claims" className={buttonVariants({ variant: "outline", size: "lg" })}>
               Claims
-            </Link>
-            <Link href="/tech" className={buttonVariants({ variant: "outline", size: "lg" })}>
-              Architecture
             </Link>
           </div>
         </section>

@@ -74,7 +74,7 @@ export default function TechPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Architecture</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Technical overview of Keystone Risk Workbench — built in 4 phases on the Catena Clearing API.
+          Technical overview of the Risk Workbench — built in 4 phases on the Catena Clearing API.
         </p>
       </div>
 
@@ -82,7 +82,7 @@ export default function TechPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">System architecture</CardTitle>
-          <CardDescription>Data flow from Catena ELD integrations through Keystone to underwriters and claims counsel</CardDescription>
+          <CardDescription>Data flow from Catena ELD integrations through the workbench to underwriters and claims counsel</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
