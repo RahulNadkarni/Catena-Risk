@@ -106,15 +106,55 @@ export class DossierFetchError extends Error {
     public readonly endpoint: string,
     public readonly cause: unknown,
   ) {
-    const detail =
-      cause instanceof Error
-        ? cause.message
-        : typeof cause === "string"
-          ? cause
-          : "unknown error";
-    super(`Catena ${endpoint} failed: ${detail}`);
+    super(`Catena ${endpoint} failed: ${formatFetchCause(cause)}`);
     this.name = "DossierFetchError";
   }
+}
+
+/** Extract a human-readable detail from an axios-style error so the UI shows
+ *  the actual 400/422 reason instead of "Request failed with status code 400". */
+function formatFetchCause(cause: unknown): string {
+  if (cause && typeof cause === "object" && "response" in cause) {
+    const r = (cause as { response?: { status?: number; data?: unknown } }).response;
+    if (r?.status) {
+      const body = r.data;
+      let detail = "";
+      if (body && typeof body === "object") {
+        const d = body as Record<string, unknown>;
+        if ("detail" in d) {
+          const raw = d.detail;
+          if (typeof raw === "string") detail = raw;
+          else if (Array.isArray(raw)) {
+            detail = raw
+              .map((item) => {
+                if (typeof item === "string") return item;
+                if (item && typeof item === "object") {
+                  const o = item as Record<string, unknown>;
+                  const loc = Array.isArray(o.loc) ? o.loc.filter((p) => p !== "body").join(".") : null;
+                  const msg = typeof o.msg === "string" ? o.msg : null;
+                  if (loc && msg) return `${loc}: ${msg}`;
+                  return msg ?? JSON.stringify(item);
+                }
+                return String(item);
+              })
+              .join("; ");
+          } else {
+            detail = JSON.stringify(raw);
+          }
+        } else if ("message" in d && typeof d.message === "string") {
+          detail = d.message;
+        } else {
+          detail = JSON.stringify(d);
+        }
+      } else if (typeof body === "string") {
+        detail = body;
+      }
+      return `HTTP ${r.status}${detail ? ` — ${detail}` : ""}`;
+    }
+  }
+  if (cause instanceof Error) return cause.message;
+  if (typeof cause === "string") return cause;
+  return "unknown error";
 }
 
 interface FixtureAgg {

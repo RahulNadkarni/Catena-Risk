@@ -16,7 +16,8 @@ export default async function NewUnderwritingPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">New underwriting submission</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Three steps: prospect & fleet, consent & share activation, data pull & scoring.
+          Pick the prospect fleet, request read-only telematics consent, and pull a 30-day dossier
+          for scoring.
         </p>
       </div>
       <UnderwritingWizard heroFleetOptions={options} initialFleetId={fleetParam} />
