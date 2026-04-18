@@ -59,6 +59,14 @@ export async function createClaim(input: {
   claimNumber: string;
   dispatchVehicleId?: string;
 }): Promise<{ claimId: string }> {
+  // Dispatch generates deterministic claim numbers per driver+date, so re-clicking
+  // "Simulate incident" collides with an existing row. Return the existing claim
+  // instead of re-pulling from Catena and silently dropping the insert.
+  const existing = getClaimByNumber(input.claimNumber);
+  if (existing) {
+    return { claimId: existing.id };
+  }
+
   const heroIds = await listHeroFleetIds();
 
   const packet: IncidentPacket = await buildRealSingleIncidentPacket(input.claimNumber, {

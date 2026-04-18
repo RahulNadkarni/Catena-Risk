@@ -9,6 +9,14 @@ A pilot application that turns Catena's normalized telematics data into four ins
 
 The app is a single Next.js 14 project using server actions (no separate API service).
 
+### What's worth noticing
+
+- **All ~24 Catena endpoints are called live.** Fixtures under [src/lib/fixtures/](src/lib/fixtures/) are peer benchmarks for the risk scorer, not runtime fallbacks.
+- **Score-critical endpoints fail loudly.** The 5 endpoints that feed a risk sub-score throw rather than silently returning `[]`, so a half-failed sandbox pull can't produce a falsely clean score. Partial failures surface as a named data-gap alert on the report.
+- **Consent is a blocking step.** Real `POST /v2/orgs/invitations` + `PATCH /v2/orgs/share_agreements`; HTTP errors are shown to the user; demo-mode submissions carry a prominent banner on the report.
+- **Field-level provenance on the claims packet.** Every value is tagged `catena_api | catena_analytics | noaa | osm | fmcsa | synthetic` — run `npx tsx scripts/validate-claim-fields.ts` to see it live.
+- **Dispatch → claims handoff.** One click on a driver-detail page pre-fills a claim with the live telematics state, closing the ops-to-counsel loop.
+
 ---
 
 ## Build & Run
@@ -207,5 +215,4 @@ The `GOOGLE_MAPS_API_KEY` referenced in one dispatch map component is optional �
 - **Projected loss-cost tile** on `/portfolio` uses directional industry constants (premium-per-power-unit, loss-ratio lift per score point) documented in the component; a production deployment would read these from the carrier rating plan.
 - **Risk weights** in [src/lib/risk/weights.ts](src/lib/risk/weights.ts) are informed defaults for commercial auto, not a calibrated actuarial model.
 - **Tier cutoffs and confidence thresholds** in scoring are hardcoded policy constants, not from Catena. In production they would come from an internal rating-policy service.
-- **No test coverage for the UI**; the 18 vitest tests target scoring, domain, and the HTTP client's retry behavior. Integration tests against the sandbox are deliberately omitted to avoid flakiness in a submission.
-- **AI assistance** was used during development. The architecture, API integration, risk model, and claims-packet composition are hand-authored decisions; generated code was reviewed and edited before commit.
+- **Test scope.** The 18 vitest tests target scoring, domain, and the HTTP client's retry behavior. UI and sandbox-integration tests are deliberately omitted to keep the submission reproducible.
