@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["tests/derived-metrics.test.ts", "tests/scoring.test.ts"],
+    include: ["tests/**/*.test.ts"],
   },
   resolve: {
     alias: {

@@ -55,13 +55,34 @@ async function timed<T>(
   }
 }
 
+function describeError(e: unknown): string {
+  if (e && typeof e === "object" && "response" in e) {
+    const r = (e as { response?: { status?: number; data?: unknown } }).response;
+    if (r?.status) {
+      const detail =
+        r.data && typeof r.data === "object" && "detail" in r.data
+          ? String((r.data as { detail?: unknown }).detail)
+          : "";
+      return `HTTP ${r.status}${detail ? ` — ${detail}` : ""}`;
+    }
+  }
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 export async function sendConsentInvitation(input: {
   fleetId: string;
   prospect: ProspectPayload;
-}): Promise<{ ok: boolean; simulated: boolean; trace: ApiTraceEntry[] }> {
+}): Promise<{
+  ok: boolean;
+  simulated: boolean;
+  trace: ApiTraceEntry[];
+  consentError: string | null;
+}> {
   const trace: ApiTraceEntry[] = [];
   const client = createCatenaClientFromEnv();
   let simulated = false;
+  let consentError: string | null = null;
 
   try {
     await timed(
@@ -75,15 +96,17 @@ export async function sendConsentInvitation(input: {
         }),
       trace,
     );
-  } catch {
+  } catch (e) {
     simulated = true;
+    consentError = `POST /v2/orgs/invitations: ${describeError(e)}`;
     trace.push({
       path: "/v2/orgs/invitations",
       method: "POST",
       ms: 0,
       status: 0,
       at: nowIso(),
-      label: "createInvitation:demo_skipped",
+      label: "createInvitation:failed",
+      errorDetail: consentError,
     });
   }
 
@@ -111,11 +134,22 @@ export async function sendConsentInvitation(input: {
         trace,
       );
     }
-  } catch {
+  } catch (e) {
     simulated = true;
+    const msg = `activateShareAgreement: ${describeError(e)}`;
+    consentError = consentError ? `${consentError}; ${msg}` : msg;
+    trace.push({
+      path: "/v2/orgs/share_agreements",
+      method: "PATCH",
+      ms: 0,
+      status: 0,
+      at: nowIso(),
+      label: "activateShareAgreement:failed",
+      errorDetail: msg,
+    });
   }
 
-  return { ok: true, simulated, trace };
+  return { ok: !simulated, simulated, trace, consentError };
 }
 
 export async function createSubmission(input: {

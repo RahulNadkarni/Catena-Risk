@@ -14,6 +14,7 @@ const emptyDossier = (windowIso: { start: string; end: string }): FleetDossier =
     totalLatencyMs: 0,
     endpointTimings: {},
     windowDays: 90,
+    fetchStatus: {},
   },
   fleet: null,
   vehicles: [],
@@ -33,6 +34,7 @@ const emptyDossier = (windowIso: { start: string; end: string }): FleetDossier =
   fuelTransactions: [],
   dataFreshness: { fleetId: "00000000-0000-0000-0000-000000000001", rows: [] },
   driverVehicleAssociations: [],
+  dataGaps: [],
 });
 
 describe("safety-event taxonomy", () => {

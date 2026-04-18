@@ -57,6 +57,8 @@ export interface FleetDossierMeta {
   totalLatencyMs: number;
   endpointTimings: Record<string, number>;
   windowDays: number;
+  /** Per-endpoint outcome so the UI can surface partial-data warnings. */
+  fetchStatus: Record<string, { ok: boolean; pagesFetched: number; itemsFetched: number; error?: string }>;
 }
 
 export interface FleetDossier {
@@ -83,6 +85,36 @@ export interface FleetDossier {
   fuelTransactions: FuelTransaction[];
   dataFreshness: DataFreshnessSummary;
   driverVehicleAssociations: DriverVehicleAssociation[];
+  /**
+   * Labels of **critical** endpoints (the ones whose output feeds a risk sub-score)
+   * that returned partial data due to a failure on a later page. First-page
+   * failures on critical endpoints throw and abort the dossier build — they
+   * never reach this array. Empty array = every critical endpoint succeeded in full.
+   */
+  dataGaps: string[];
+}
+
+/**
+ * Thrown by `buildFleetDossier` when a **critical** endpoint fails on its first
+ * page. Critical endpoints are the ones whose output feeds a risk sub-score
+ * (driver-safety-events, vehicle-locations, hos-violations, hos-availabilities,
+ * dvir-logs). Failing them silently would produce a falsely clean risk score,
+ * so we surface the error to the UI instead of returning empty arrays.
+ */
+export class DossierFetchError extends Error {
+  constructor(
+    public readonly endpoint: string,
+    public readonly cause: unknown,
+  ) {
+    const detail =
+      cause instanceof Error
+        ? cause.message
+        : typeof cause === "string"
+          ? cause
+          : "unknown error";
+    super(`Catena ${endpoint} failed: ${detail}`);
+    this.name = "DossierFetchError";
+  }
 }
 
 interface FixtureAgg {
@@ -179,16 +211,18 @@ async function collectPaged<T>(
   label: string,
   meta: FleetDossierMeta,
   fetchPage: (cursor?: string | null) => Promise<CursorPage<T>>,
-  options: { maxPages: number; size: number },
+  options: { maxPages: number; size: number; critical?: boolean },
 ): Promise<T[]> {
   const acc: T[] = [];
   let cursor: string | undefined;
+  let pagesFetched = 0;
   for (let p = 0; p < options.maxPages; p++) {
     const t0 = Date.now();
     try {
       const res = await fetchPage(cursor);
       bumpTiming(meta, `${label}#${p}`, Date.now() - t0);
       acc.push(...(res.items ?? []));
+      pagesFetched += 1;
       const next = res.next_page;
       if (typeof next === "string" && next.length > 0) {
         cursor = next;
@@ -197,11 +231,24 @@ async function collectPaged<T>(
       }
     } catch (e) {
       bumpTiming(meta, `${label}#${p}:error`, Date.now() - t0);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      meta.fetchStatus[label] = {
+        ok: false,
+        pagesFetched,
+        itemsFetched: acc.length,
+        error: errMsg,
+      };
+      // A first-page failure on a score-critical endpoint is fatal — returning
+      // an empty array would produce a falsely clean risk score. Surface it.
+      if (options.critical && p === 0) {
+        throw new DossierFetchError(label, e);
+      }
       // eslint-disable-next-line no-console
       console.warn(`[buildFleetDossier] ${label} page ${p} failed`, e);
-      break;
+      return acc;
     }
   }
+  meta.fetchStatus[label] = { ok: true, pagesFetched, itemsFetched: acc.length };
   return acc;
 }
 
@@ -213,6 +260,7 @@ function emptyMeta(source: "api" | "fixtures", windowDays: number): FleetDossier
     totalLatencyMs: 0,
     endpointTimings: {},
     windowDays,
+    fetchStatus: {},
   };
 }
 
@@ -225,6 +273,20 @@ function normalizeFleetForFixture(fleetId: string): GetFleetResponse {
     updated_at: now,
   } as GetFleetResponse;
 }
+
+/**
+ * Labels of endpoints whose output feeds a risk sub-score or the exposure
+ * denominators. If any of these returns partial data, `dossier.dataGaps` picks
+ * it up so the UI can warn the underwriter instead of silently producing a
+ * falsely-clean score.
+ */
+const CRITICAL_DOSSIER_ENDPOINTS = new Set<string>([
+  "listDriverSafetyEvents",
+  "listVehicleLocations",
+  "listHosViolations",
+  "listHosAvailabilities",
+  "listDvirLogs",
+]);
 
 /**
  * Loads a single-fleet snapshot from the API (parallel requests, graceful degradation) or offline
@@ -277,6 +339,7 @@ export async function buildFleetDossier(
       fuelTransactions: [] as FleetDossier["fuelTransactions"],
       dataFreshness: synthesizeDataFreshness(fleetId, cFromVehicles),
       driverVehicleAssociations: [],
+      dataGaps: [],
     };
     dossier.driverVehicleAssociations = deriveDriverVehiclePairs(dossier);
     return dossier;
@@ -294,9 +357,12 @@ export async function buildFleetDossier(
     try {
       const r = await fn();
       bumpTiming(meta, label, Date.now() - t0);
+      meta.fetchStatus[label] = { ok: true, pagesFetched: 1, itemsFetched: 1 };
       return r;
     } catch (e) {
       bumpTiming(meta, `${label}:error`, Date.now() - t0);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      meta.fetchStatus[label] = { ok: false, pagesFetched: 0, itemsFetched: 0, error: errMsg };
       // eslint-disable-next-line no-console
       console.warn(`[buildFleetDossier] ${label} failed`, e);
       return empty;
@@ -332,13 +398,13 @@ export async function buildFleetDossier(
       "listDriverSafetyEvents",
       meta,
       (c) => client.listDriverSafetyEvents({ ...fp, ...range, cursor: c }),
-      { maxPages, size: pageSize },
+      { maxPages, size: pageSize, critical: true },
     ),
     collectPaged(
       "listVehicleLocations",
       meta,
       (c) => client.listVehicleLocations({ ...fp, ...range, cursor: c }),
-      { maxPages, size: pageSize },
+      { maxPages, size: pageSize, critical: true },
     ),
     collectPaged(
       "listHosEvents",
@@ -350,7 +416,7 @@ export async function buildFleetDossier(
       "listHosViolations",
       meta,
       (c) => client.listHosViolations({ ...fp, ...range, cursor: c }),
-      { maxPages, size: pageSize },
+      { maxPages, size: pageSize, critical: true },
     ),
     collectPaged(
       "listHosDailySnapshots",
@@ -362,13 +428,13 @@ export async function buildFleetDossier(
       "listHosAvailabilities",
       meta,
       (c) => client.listHosAvailabilities({ ...fp, cursor: c }),
-      { maxPages, size: pageSize },
+      { maxPages, size: pageSize, critical: true },
     ),
     collectPaged(
       "listDvirLogs",
       meta,
       (c) => client.listDvirLogs({ ...fp, ...range, cursor: c }),
-      { maxPages, size: pageSize },
+      { maxPages, size: pageSize, critical: true },
     ),
     // placeholder — defects are fetched per-log below (top-level /dvir-defects returns ERROR per COVERAGE.md)
     Promise.resolve([] as DvirDefectRead[]),
@@ -434,6 +500,9 @@ export async function buildFleetDossier(
     fuelTransactions: [] as FleetDossier["fuelTransactions"],
     dataFreshness: synthesizeDataFreshness(fleetId, connections),
     driverVehicleAssociations: [],
+    dataGaps: Object.entries(meta.fetchStatus)
+      .filter(([label, s]) => !s.ok && CRITICAL_DOSSIER_ENDPOINTS.has(label))
+      .map(([label]) => label),
   };
 
   dossier.driverVehicleAssociations = deriveDriverVehiclePairs(dossier);

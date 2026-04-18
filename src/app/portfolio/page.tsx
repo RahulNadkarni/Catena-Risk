@@ -6,6 +6,7 @@ import { RiskDistributionChart } from "@/components/portfolio/risk-distribution"
 import { PortfolioTrendChart } from "@/components/portfolio/trend-chart";
 import { PortfolioFleetTable } from "@/components/portfolio/fleet-table";
 import { DeteriorationAlerts } from "@/components/portfolio/deterioration-alerts";
+import { ProjectedSavingsTile } from "@/components/portfolio/projected-savings";
 import { TopRiskDriversCard } from "@/components/portfolio/top-risk-drivers";
 import { SafetyEventBreakdownCard } from "@/components/portfolio/event-breakdown";
 import { fetchPortfolioOverview, fetchPortfolioTimeSeries } from "@/lib/catena/portfolio-analytics";
@@ -41,6 +42,11 @@ export default async function PortfolioPage() {
       <Suspense fallback={<div className="h-24 animate-pulse rounded-xl bg-muted" />}>
         <PortfolioKpiBand overview={overview} scores={scores} />
       </Suspense>
+
+      {/* Loss-control lever — $ number the carrier can optimize against */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ProjectedSavingsTile rows={rows} totalActiveVehicles={overview.totalVehicles} />
+      </div>
 
       {/* Distribution + Trend side by side */}
       <div className="grid gap-6 lg:grid-cols-2">

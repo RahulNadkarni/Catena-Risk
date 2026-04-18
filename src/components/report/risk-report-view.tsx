@@ -9,6 +9,7 @@ import { ApiTraceDialog } from "@/components/report/api-trace-dialog";
 import { DriversTable, type DriverSummaryRow } from "@/components/report/drivers-table";
 import { InlineMarkdown } from "@/components/report/inline-markdown";
 import { NarrativeCopy } from "@/components/report/narrative-copy";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,9 +84,57 @@ export function RiskReportView({
   const primaryConnection = dossier.connections[0];
   const sourceLabel = primaryConnection?.source_name ?? dossier.source;
 
+  const dataGaps = dossier.dataGaps ?? [];
+  const fetchStatus = dossier.meta.fetchStatus ?? {};
+  const gapDetails = dataGaps.map((label) => ({
+    label,
+    error: fetchStatus[label]?.error ?? "endpoint returned partial data after first-page failure",
+  }));
+  const consentErrors = apiTrace
+    .filter((t) => t.label?.endsWith(":failed") && t.errorDetail)
+    .map((t) => t.errorDetail as string);
+
   return (
     <div className="lg:grid lg:grid-cols-[1fr_280px] lg:gap-8">
       <div className="space-y-8 min-w-0">
+        {gapDetails.length > 0 ? (
+          <Alert>
+            <AlertTitle>Partial telematics data</AlertTitle>
+            <AlertDescription>
+              {gapDetails.length} Catena endpoint{gapDetails.length === 1 ? "" : "s"} returned partial
+              data — the affected sub-scores default toward neutral and the composite score should be
+              treated as indicative only:
+              <ul className="mt-2 list-inside list-disc text-xs">
+                {gapDetails.map((g) => (
+                  <li key={g.label}>
+                    <span className="font-mono">{g.label}</span> — {g.error}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {consentSimulated ? (
+          <Alert>
+            <AlertTitle>Simulated consent</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">
+                The Catena consent API call did not succeed when this submission was created.
+                The dossier below was built anyway for demo purposes; in production the workflow
+                would block here until a signed share agreement is in place.
+              </p>
+              {consentErrors.length > 0 ? (
+                <ul className="mt-1 list-inside list-disc text-xs">
+                  {consentErrors.map((err, i) => (
+                    <li key={i} className="font-mono">
+                      {err}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <section className="flex flex-col gap-6 rounded-xl border border-border bg-card p-6 shadow-sm md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">

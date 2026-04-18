@@ -47,6 +47,8 @@ export function UnderwritingWizard({
 
   const [consentTrace, setConsentTrace] = useState<ApiTraceEntry[]>([]);
   const [consentSimulated, setConsentSimulated] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const [consentAttempted, setConsentAttempted] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -70,11 +72,17 @@ export function UnderwritingWizard({
   async function onRunConsent() {
     setConsentBusy(true);
     setSubmitError(null);
+    setConsentError(null);
+    setConsentAttempted(true);
     try {
       const r = await sendConsentInvitation({ fleetId, prospect });
       setConsentTrace(r.trace);
       setConsentSimulated(r.simulated);
-      setStep(2);
+      setConsentError(r.consentError);
+      // Auto-advance only on a clean consent run. When the sandbox rejects the
+      // invitation or share-agreement activation we stop here so the user has
+      // to explicitly acknowledge that the submission is going in as simulated.
+      if (!r.simulated) setStep(2);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Consent step failed");
     } finally {
@@ -221,11 +229,27 @@ export function UnderwritingWizard({
                 The invitation targets the selected fleet. Share agreements are listed and the first pending agreement
                 for this fleet is activated when possible.
               </p>
-              {consentSimulated ? (
-                <Alert>
-                  <AlertTitle>Demo mode</AlertTitle>
+              {consentAttempted && consentSimulated ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Catena consent API did not accept the request</AlertTitle>
                   <AlertDescription>
-                    At least one consent API call used the sandbox-safe fallback. Submission will be flagged as simulated.
+                    <p className="mb-2">
+                      {consentError ??
+                        "POST /v2/orgs/invitations or PATCH /v2/orgs/share_agreements failed."}
+                    </p>
+                    <p className="text-xs">
+                      In production the workflow would block here until a signed share agreement is
+                      in place. To keep the demo flowing against the sandbox you can continue, and
+                      the submission will be flagged as <span className="font-mono">simulated consent</span>{" "}
+                      on the risk report so the underwriter sees it.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              ) : consentAttempted && !consentSimulated ? (
+                <Alert>
+                  <AlertTitle>Consent recorded</AlertTitle>
+                  <AlertDescription>
+                    Invitation accepted and share agreement activated. Advancing to dossier pull.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -233,16 +257,35 @@ export function UnderwritingWizard({
                 <Button type="button" variant="outline" onClick={() => setStep(0)}>
                   Back
                 </Button>
-                <Button type="button" onClick={onRunConsent} disabled={consentBusy}>
-                  {consentBusy ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      Sending…
-                    </>
-                  ) : (
-                    "Send invitation & activate share"
-                  )}
-                </Button>
+                {consentAttempted && consentSimulated ? (
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={onRunConsent} disabled={consentBusy}>
+                      {consentBusy ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                          Retrying…
+                        </>
+                      ) : (
+                        "Retry"
+                      )}
+                    </Button>
+                    <Button type="button" onClick={() => setStep(2)}>
+                      Continue in demo mode
+                      <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button type="button" onClick={onRunConsent} disabled={consentBusy}>
+                    {consentBusy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                        Sending…
+                      </>
+                    ) : (
+                      "Send invitation & activate share"
+                    )}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

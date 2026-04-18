@@ -93,6 +93,7 @@ function dossierForConfidence(opts: {
       totalLatencyMs: 0,
       endpointTimings: {},
       windowDays: opts.days,
+      fetchStatus: {},
     },
     fleet: null,
     vehicles: [],
@@ -122,6 +123,7 @@ function dossierForConfidence(opts: {
       ],
     },
     driverVehicleAssociations: [],
+    dataGaps: [],
   } as FleetDossier;
 }
 

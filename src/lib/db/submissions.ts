@@ -22,6 +22,8 @@ export interface ApiTraceEntry {
   status: number;
   at: string;
   label?: string;
+  /** Populated when the call failed; surfaces as the consent-simulated alert on the report. */
+  errorDetail?: string;
 }
 
 export interface SubmissionRow {

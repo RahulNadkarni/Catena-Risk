@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -84,16 +85,38 @@ export function IncidentTimelineChart({ speedTimeline, postedSpeedLimitMph, spee
             label={{ value: "IMPACT", position: "top", fontSize: 10, fill: "#f97316" }}
           />
 
-          {/* Safety event markers */}
-          {safetyEvents.map((evt) => (
-            <ReferenceLine
-              key={evt.id}
-              x={evt.offsetMinutes}
-              stroke={SEVERITY_COLOR[evt.severity] ?? "#888"}
-              strokeDasharray="4 2"
-              label={{ value: EVENT_LABEL[evt.type] ?? evt.type, position: "top", fontSize: 9, fill: SEVERITY_COLOR[evt.severity] }}
-            />
-          ))}
+          {/* Safety event markers.
+              Speeding events plot as a dot on the speed line (the line itself
+              already communicates the over-limit condition, so a labelled
+              vertical rule just adds visual noise). All other event types keep
+              the dashed vertical line + label since they aren't visible from
+              the speed trace alone. */}
+          {safetyEvents.map((evt) => {
+            if (evt.type === "speeding") {
+              const sample = speedTimeline.find((s) => s.offsetMinutes === evt.offsetMinutes);
+              const y = sample?.speedMph ?? speedAtImpactMph;
+              return (
+                <ReferenceDot
+                  key={evt.id}
+                  x={evt.offsetMinutes}
+                  y={y}
+                  r={4}
+                  fill={SEVERITY_COLOR[evt.severity] ?? "#888"}
+                  stroke="#fff"
+                  strokeWidth={1.5}
+                />
+              );
+            }
+            return (
+              <ReferenceLine
+                key={evt.id}
+                x={evt.offsetMinutes}
+                stroke={SEVERITY_COLOR[evt.severity] ?? "#888"}
+                strokeDasharray="4 2"
+                label={{ value: EVENT_LABEL[evt.type] ?? evt.type, position: "top", fontSize: 9, fill: SEVERITY_COLOR[evt.severity] }}
+              />
+            );
+          })}
 
           <Line
             type="monotone"
