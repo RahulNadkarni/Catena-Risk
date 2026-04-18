@@ -219,17 +219,19 @@ export interface IncidentPacket {
   driverId: string | null;
   vehicleUnit: string;
   vehicleId: string | null;
-  vehicleVin: string;
+  vehicleVin: string | null;
   /** Driver active since — derived from Catena user.started_at / created_at */
-  driverTenureMonths: number;
+  driverTenureMonths: number | null;
 
   // --- Speed telemetry ---
-  /** 72 samples at 1-min intervals ending at incident; real pings where available */
+  /** Samples at 1-min intervals ending at incident; real API pings only, no synthetic fill */
   speedTimeline: SpeedSample[];
   /** From RoadContext (OSM) — null when unavailable; never hardcoded */
   postedSpeedLimitMph: number | null;
-  speedAtImpactMph: number;
-  maxSpeedInWindowMph: number;
+  /** Speed at impact from closest API ping; null when no ping within meaningful threshold */
+  speedAtImpactMph: number | null;
+  /** Max speed across real API pings in 72-min window; null when no meaningful pings */
+  maxSpeedInWindowMph: number | null;
 
   // --- Pre-incident behavioral events (30-min window) ---
   safetyEventsInWindow: ClaimSafetyEvent[];

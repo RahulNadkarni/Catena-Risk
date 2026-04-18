@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { DemoModeWidget } from "@/components/layout/demo-mode-widget";
 
 const nav = [
   { href: "/", label: "Dashboard" },
@@ -40,7 +39,6 @@ export function AppShell({ children, rightRail, className }: AppShellProps) {
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            <DemoModeWidget />
             <span className="hidden text-sm text-muted-foreground sm:block">Catena telematics</span>
           </div>
         </div>

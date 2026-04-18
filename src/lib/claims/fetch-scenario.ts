@@ -1,9 +1,8 @@
 /**
- * Builds IncidentPackets from real Catena API data.
- * Falls back to generate-scenario.ts synthetic data if API returns insufficient records.
- *
- * Principle: Catena API first. External enrichment (NOAA, OSM) only where Catena has no
- * equivalent endpoint.
+ * Builds IncidentPackets from real Catena API data. No synthetic fallback —
+ * when the API does not return a field, the packet stores null and the UI
+ * renders "Not reported". External enrichment (NOAA, OSM, Nominatim) only
+ * where Catena has no equivalent endpoint.
  */
 import { addMinutes, formatISO, subDays } from "date-fns";
 import { createCatenaClientFromEnv } from "@/lib/catena/client";
@@ -363,8 +362,8 @@ async function buildIncidentPacket(opts: {
     str(vehicle, "vehicle_name") ??
     str(vehicle, "unit") ??
     str(vehicle, "description") ??
-    `Unit ${vehicleId.slice(0, 4).toUpperCase()}`;
-  const vehicleVin = str(vehicle, "vin") ?? `UNKNOWN-${vehicleId.slice(0, 8).toUpperCase()}`;
+    vehicleId.slice(0, 8);
+  const vehicleVin: string | null = str(vehicle, "vin");
 
   // Incident time — from most recent safety event for this driver/vehicle, else 7 days ago
   const driverEvents = allSafetyEvents
@@ -759,15 +758,6 @@ export async function fetchClaimScenariosFromApi(): Promise<[IncidentPacket, Inc
   return [packet1, packet2];
 }
 
-export async function generateIncidentPacketFromApi(scenarioId: ScenarioId): Promise<IncidentPacket> {
-  const { generateIncidentPacket } = await import("./generate-scenario");
-  try {
-    const [s1, s2] = await fetchClaimScenariosFromApi();
-    return scenarioId === "KS-2026-0142" ? s1 : s2;
-  } catch {
-    return generateIncidentPacket(scenarioId);
-  }
-}
 
 /**
  * Builds a single IncidentPacket from real Catena API data for a given claim number.
@@ -966,16 +956,11 @@ export async function buildRealSingleIncidentPacket(
     }
   }
 
-  // Derive base speed: use meaningful vehicle pings regardless of time window.
-  // Falls back to a vehicle-specific estimate when sandbox speeds are near-zero.
-  // Use vehicleId hash for repeatable per-vehicle variance (50–68 mph range).
-  const vehicleSpeedSeed = vehicleId
-    ? vehicleId.split("").reduce((acc, c, i) => acc + c.charCodeAt(0) * (i + 1), 0)
-    : 0;
-  const syntheticFallback = 50 + (vehicleSpeedSeed % 19); // 50–68 mph, stable per vehicle
-  const baseSpeed = vehicleSpeedsMeaningful.length > 0
+  // Derive base speed: use meaningful vehicle pings only. No synthetic fallback —
+  // if the sandbox doesn't report driving speeds for this vehicle, we leave it null.
+  const baseSpeed: number | null = vehicleSpeedsMeaningful.length > 0
     ? Math.round(vehicleSpeedsMeaningful.reduce((a, b) => a + b, 0) / vehicleSpeedsMeaningful.length * 10) / 10
-    : syntheticFallback;
+    : null;
   const speedFromApi = vehicleSpeedsMeaningful.length > 0;
 
   // Speed at impact: meaningful ping closest to incident time
@@ -994,7 +979,7 @@ export async function buildRealSingleIncidentPacket(
       };
     }
   }
-  const speedAtImpactRaw = closestToImpact?.speedMph ?? baseSpeed;
+  const speedAtImpactRaw: number | null = closestToImpact?.speedMph ?? baseSpeed;
 
   // ── Build common packet fields ─────────────────────────────────────────────
   const firstName = str(driver, "first_name") ?? "Driver";
@@ -1004,17 +989,17 @@ export async function buildRealSingleIncidentPacket(
   const driverName = (isSyntheticCatenaName && dispatchTspName)
     ? dispatchTspName.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
     : `${firstName} ${lastName}`;
-  const vehicleUnit = str(vehicle, "vehicle_name") ?? str(vehicle, "unit") ?? str(vehicle, "description") ?? str(dispatchLiveLoc, "vehicle_name") ?? `Unit-${vehicleId.slice(0, 6).toUpperCase()}`;
-  const vehicleVin = str(vehicle, "vin") ?? `VIN-UNAVAILABLE-${vehicleId.slice(0, 8).toUpperCase()}`;
+  const vehicleUnit = str(vehicle, "vehicle_name") ?? str(vehicle, "unit") ?? str(vehicle, "description") ?? str(dispatchLiveLoc, "vehicle_name") ?? vehicleId.slice(0, 8);
+  const vehicleVin: string | null = str(vehicle, "vin");
 
   const driverSummary = driverSummaries.find((s) => str(s, "driver_id") === driverId || str(s, "id") === driverId);
   const driverSafetyEvents30d = num(driverSummary, "safety_events_30d");
   const driverHosViolations30d = num(driverSummary, "hos_violations_30d");
 
   const createdAt = str(driver, "created_at");
-  const driverTenureMonths = createdAt
+  const driverTenureMonths: number | null = createdAt
     ? Math.max(1, Math.round((Date.now() - new Date(createdAt).getTime()) / (30 * 24 * 3600_000)))
-    : 12;
+    : null;
 
   // ── Safety events in 30-min pre-incident window ───────────────────────────
   const windowStart = addMinutes(incidentDate, -30);
@@ -1072,23 +1057,25 @@ export async function buildRealSingleIncidentPacket(
   );
   const driverHosViolations90d = hosViolations.filter((v) => str(v, "driver_id") === driverId).length;
 
-  // ── Speed timeline (real pings fill the 72-min window) ───────────────────
-  const speedTimeline = buildSpeedTimeline({
-    incidentAt,
-    incidentLat,
-    incidentLng,
-    baseSpeedMph: baseSpeed,
-    speedAtImpact: speedAtImpactRaw,
-    headingDeg,
-    peakOverrides: [], // no synthetic overrides — real events speak for themselves
-    realPings,
-  });
+  // ── Speed timeline — real API pings ONLY. No synthetic fill.
+  // If the sandbox doesn't report speeds for this vehicle, the timeline is just empty.
+  const speedTimeline: SpeedSample[] = realPings
+    .sort((a, b) => a.offsetMinutes - b.offsetMinutes)
+    .map((p) => ({
+      offsetMinutes: p.offsetMinutes,
+      speedMph: Math.round(p.speedMph * 10) / 10,
+      lat: p.lat,
+      lng: p.lng,
+      fromApi: true,
+    }));
 
-  const speedAtImpactMph = speedTimeline.find((s) => s.offsetMinutes === 0)?.speedMph ?? speedAtImpactRaw;
-  const maxSpeedInWindowMph = Math.max(...speedTimeline.map((s) => s.speedMph));
+  const speedAtImpactMph: number | null = speedTimeline.find((s) => s.offsetMinutes === 0)?.speedMph ?? speedAtImpactRaw;
+  const maxSpeedInWindowMph: number | null = speedTimeline.length > 0
+    ? Math.max(...speedTimeline.map((s) => s.speedMph))
+    : null;
 
   const routeWaypoints = buildRouteWaypointsFromLocations(
-    locations, vehicleId, incidentAt, incidentLat, incidentLng, baseSpeed, headingDeg,
+    locations, vehicleId, incidentAt, incidentLat, incidentLng, baseSpeed ?? 0, headingDeg,
   );
 
   // ── Trip origin: oldest HOS event for this vehicle within 72h pre-incident ───
@@ -1107,22 +1094,25 @@ export async function buildRealSingleIncidentPacket(
     }
   }
 
-  // ── External enrichment (NOAA + OSM) ─────────────────────────────────────
-  const [weatherContext, roadContext, tripOriginCity] = await Promise.all([
+  // ── External enrichment (NOAA + OSM + Nominatim) ─────────────────────────
+  const [weatherContext, roadContext, tripOriginCity, incidentCity] = await Promise.all([
     fetchWeatherAtIncident(incidentLat, incidentLng, incidentAt),
     fetchRoadContext(incidentLat, incidentLng, null),
     tripOriginRaw ? reverseGeocode(tripOriginRaw.lat, tripOriginRaw.lng).catch(() => null) : Promise.resolve(null),
+    reverseGeocode(incidentLat, incidentLng).catch(() => null),
   ]);
   const tripOrigin = tripOriginRaw ? { ...tripOriginRaw, cityName: tripOriginCity } : null;
 
   const postedSpeedLimitMph = roadContext.source === "osm" ? roadContext.postedSpeedLimitMph : null;
 
-  // Build human-readable location from road context or coordinates
-  const incidentLocation = roadContext.source === "osm" && roadContext.roadName
-    ? `${roadContext.roadName}${roadContext.roadClassification ? ` (${roadContext.roadClassification})` : ""} — ${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)}`
-    : coordsFromApi
-      ? `GPS ${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)}`
-      : "Location data unavailable from Catena API";
+  // Build human-readable location: prefer city · road · coords
+  const locationParts: string[] = [];
+  if (incidentCity) locationParts.push(incidentCity);
+  if (roadContext.source === "osm" && roadContext.roadName) {
+    locationParts.push(`${roadContext.roadName}${roadContext.roadClassification ? ` (${roadContext.roadClassification})` : ""}`);
+  }
+  locationParts.push(`${incidentLat.toFixed(4)}, ${incidentLng.toFixed(4)}`);
+  const incidentLocation = locationParts.join(" · ");
 
   const incidentDescription = `Incident reported for ${vehicleUnit}, operated by ${driverName}. ` +
     `${safetyEventsInWindow.length > 0 ? `${safetyEventsInWindow.length} safety event(s) recorded in 30-min window.` : "No safety events in 30-min window."}`;
@@ -1152,17 +1142,19 @@ export async function buildRealSingleIncidentPacket(
   const missingFields: string[] = [];
   const syntheticFieldsList: string[] = [];
 
+  // Every field is either present (api_confirmed) or missing — nothing is ever
+  // fabricated in this builder, so syntheticFieldsList stays empty.
   if (coordsFromApi) apiFields.push("incidentLat", "incidentLng");
-  else syntheticFieldsList.push("incidentLat", "incidentLng");
+  else missingFields.push("incidentLat", "incidentLng");
 
   if (speedFromApi) apiFields.push("baseSpeed");
-  else syntheticFieldsList.push("baseSpeed");
+  else missingFields.push("baseSpeed");
 
   if (realPings.length > 0) apiFields.push("speedTimeline");
-  else syntheticFieldsList.push("speedTimeline");
+  else missingFields.push("speedTimeline");
 
   if (hosForSnapshot) apiFields.push("hosSnapshot");
-  else syntheticFieldsList.push("hosSnapshot");
+  else missingFields.push("hosSnapshot");
 
   if (weatherContext.source === "noaa") apiFields.push("weatherContext");
   else missingFields.push("weatherContext");
@@ -1177,7 +1169,7 @@ export async function buildRealSingleIncidentPacket(
   else missingFields.push("driverSafetyEvents30d");
 
   if (mostRecentEvent) apiFields.push("incidentAt");
-  else syntheticFieldsList.push("incidentAt");
+  else missingFields.push("incidentAt");
 
   const dataCompleteness = computeCompleteness(apiFields, missingFields, syntheticFieldsList);
 

@@ -42,6 +42,10 @@ export interface DriverHosStatus {
   tripOrigin: TripPoint | null;
   /** Most recent driving location from latest HOS Driving event */
   lastDrivingPoint: TripPoint | null;
+  /** Reverse-geocoded city/state of current GPS position */
+  currentCity: string | null;
+  /** Road context at current GPS position — only populated for drivers with Driving duty status */
+  currentRoad: { roadName: string | null; classification: string | null; speedLimitMph: number | null } | null;
 }
 
 export interface HosEventItem {
@@ -253,11 +257,12 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
       .filter(Boolean),
   );
 
-  // Build driver status from live locations. We show any vehicle with meaningful data:
-  //   - Real TSP driver name (e.g. "ned.ryerson") — means a named driver is assigned
-  //   - Matching HOS availability — means we have live duty-status data
-  //   - Matching HOS events — means we have trip history
-  // Vehicles with none of these are just pings with no driver context — skip them.
+  // Build driver status from live locations. Filter to the STABLE set:
+  //   - Real TSP driver name (e.g. "ned.ryerson"), OR
+  //   - Matching HOS availability record
+  // HOS events are excluded from the filter — they stream in continuously in the
+  // sandbox, so a filter based on them would add/remove drivers between page
+  // refreshes. The two criteria above are stable across calls.
   const driverStatuses: DriverHosStatus[] = [];
   for (const liveLoc of liveLocations) {
     const vehicleId = str(liveLoc, "vehicle_id");
@@ -269,8 +274,7 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
     const rawName = str(liveLoc, "driver_name");
     const hasRealName = !!rawName && !rawName.startsWith("user_");
     const hos = hosAvailByTspId.get(tspDriverId) ?? null;
-    const hasTripHistory = tripOriginByVehicle.has(vehicleId);
-    if (!hasRealName && !hos && !hasTripHistory) continue;
+    if (!hasRealName && !hos) continue;
 
     const driverName = formatTspName(rawName) ?? `Driver ${tspDriverId.slice(0, 8)}`;
     const vehicleName = str(liveLoc, "vehicle_name");
@@ -325,8 +329,34 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
       fuelPct,
       tripOrigin: tripOriginByVehicle.get(vehicleId) ?? null,
       lastDrivingPoint: lastDrivingByVehicle.get(vehicleId) ?? null,
+      currentCity: null,  // populated in parallel below
+      currentRoad: null,  // populated in parallel for Driving drivers
     });
   }
+
+  // Enrich each driver with reverse-geocoded city; road context only for Driving drivers.
+  // 2s hard budget so the board stays fast. Subsequent loads use in-memory caches.
+  const boardBudgetMs = 2_000;
+  const withBoardBudget = <T>(p: Promise<T>): Promise<T | null> =>
+    Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), boardBudgetMs))]);
+  await Promise.all(
+    driverStatuses.map(async (d) => {
+      if (d.lat == null || d.lng == null) return;
+      const isDriving = d.dutyStatus.toLowerCase() === "driving";
+      const [city, road] = await Promise.all([
+        withBoardBudget(reverseGeocode(d.lat, d.lng).catch(() => null)),
+        isDriving ? withBoardBudget(fetchRoadContext(d.lat, d.lng, null).catch(() => null)) : Promise.resolve(null),
+      ]);
+      d.currentCity = city;
+      if (road && road.source === "osm") {
+        d.currentRoad = {
+          roadName: road.roadName,
+          classification: road.roadClassification,
+          speedLimitMph: road.postedSpeedLimitMph,
+        };
+      }
+    }),
+  );
 
   // Recent safety events (last 24h)
   const cutoff = Date.now() - 24 * 3600_000;
@@ -524,6 +554,8 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
     fuelPct,
     tripOrigin,
     lastDrivingPoint,
+    currentCity: null,   // populated after this block (shared with dispatch flow)
+    currentRoad: null,
   };
 
   // Safety events for this vehicle
@@ -684,6 +716,9 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
       };
     }
     currentCity = city;
+    // Mirror into driver record so board card and detail stay consistent.
+    driver.currentCity = city;
+    if (roadContext) driver.currentRoad = roadContext;
   }
 
   return {

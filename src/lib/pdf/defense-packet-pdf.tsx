@@ -117,7 +117,7 @@ interface Props {
 
 export function DefensePacketPDF({ packet }: Props) {
   const gen = new Date().toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" });
-  const isOverLimit = packet.postedSpeedLimitMph != null && packet.speedAtImpactMph > packet.postedSpeedLimitMph;
+  const isOverLimit = packet.postedSpeedLimitMph != null && packet.speedAtImpactMph != null && packet.speedAtImpactMph > packet.postedSpeedLimitMph;
   const unresolvedCritical = packet.dvirRecords
     .flatMap((r) => r.defects)
     .filter((d) => d.severity === "critical" && !d.resolvedAt);
@@ -166,8 +166,8 @@ export function DefensePacketPDF({ packet }: Props) {
           <Row label="Driver" value={packet.driverName} />
           {packet.driverId && <Row label="Driver ID" value={packet.driverId} />}
           <Row label="Vehicle unit" value={packet.vehicleUnit} />
-          <Row label="VIN" value={packet.vehicleVin} />
-          <Row label="Driver tenure" value={`${packet.driverTenureMonths} months`} />
+          <Row label="VIN" value={packet.vehicleVin ?? "Not reported by TSP"} />
+          <Row label="Driver tenure" value={packet.driverTenureMonths != null ? `${packet.driverTenureMonths} months` : "Not reported"} />
         </View>
 
         <Text style={styles.sectionTitle}>Incident summary narrative</Text>
@@ -184,12 +184,12 @@ export function DefensePacketPDF({ packet }: Props) {
 
         <Text style={styles.sectionTitle}>Speed telemetry (72-min pre-incident window)</Text>
         <View style={styles.card}>
-          <Row label="Speed at impact" value={`${packet.speedAtImpactMph} mph`} />
+          <Row label="Speed at impact" value={packet.speedAtImpactMph != null ? `${packet.speedAtImpactMph} mph` : "Not reported by TSP"} />
           <Row
             label="Posted speed limit"
             value={packet.postedSpeedLimitMph != null ? `${packet.postedSpeedLimitMph} mph (OSM)` : "Unavailable"}
           />
-          {packet.postedSpeedLimitMph != null && (
+          {packet.postedSpeedLimitMph != null && packet.speedAtImpactMph != null && (
             <Row
               label="Delta vs. limit"
               value={isOverLimit
@@ -197,7 +197,7 @@ export function DefensePacketPDF({ packet }: Props) {
                 : `${packet.postedSpeedLimitMph! - packet.speedAtImpactMph} mph below`}
             />
           )}
-          <Row label="Max speed in window" value={`${packet.maxSpeedInWindowMph.toFixed(1)} mph`} />
+          <Row label="Max speed in window" value={packet.maxSpeedInWindowMph != null ? `${packet.maxSpeedInWindowMph.toFixed(1)} mph` : "Not reported"} />
           <Row label="Average speed in window" value={`${avgSpeed.toFixed(1)} mph`} />
           <Row label="Speed samples (total)" value={`${packet.speedTimeline.length}`} />
           <Row label="Real API pings" value={`${realPings} of ${packet.speedTimeline.length}`} />

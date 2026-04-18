@@ -38,9 +38,6 @@ export default function HomePage() {
             <Link href="/claims" className={buttonVariants({ variant: "outline", size: "lg" })}>
               Claims
             </Link>
-            <Link href="/roi" className={buttonVariants({ variant: "outline", size: "lg" })}>
-              ROI calculator
-            </Link>
             <Link href="/tech" className={buttonVariants({ variant: "outline", size: "lg" })}>
               Architecture
             </Link>

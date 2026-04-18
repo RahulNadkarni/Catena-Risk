@@ -99,7 +99,7 @@ export function DefensePacketView({ claimId, claimNumber, status, packet }: Prop
     .flatMap((r) => r.defects)
     .filter((d) => d.severity === "critical" && !d.resolvedAt);
 
-  const isOverLimit = postedSpeedLimitMph != null && speedAtImpactMph > postedSpeedLimitMph;
+  const isOverLimit = postedSpeedLimitMph != null && speedAtImpactMph != null && speedAtImpactMph > postedSpeedLimitMph;
 
   return (
     <div className="lg:grid lg:grid-cols-[1fr_300px] lg:gap-8">
@@ -179,8 +179,8 @@ export function DefensePacketView({ claimId, claimNumber, status, packet }: Prop
             <Row k="Coordinates" v={`${packet.incidentLat.toFixed(5)}°N, ${Math.abs(packet.incidentLng).toFixed(5)}°W`} />
             <Row k="Driver" v={driverName} />
             <Row k="Vehicle unit" v={vehicleUnit} />
-            <Row k="VIN" v={vehicleVin} />
-            <Row k="Driver tenure" v={driverTenureMonths > 0 ? `${driverTenureMonths} months` : "Unavailable"} />
+            <Row k="VIN" v={vehicleVin ?? "Not reported by TSP"} />
+            <Row k="Driver tenure" v={driverTenureMonths != null && driverTenureMonths > 0 ? `${driverTenureMonths} months` : "Not reported"} />
             <Row k="Report generated" v={fmtDate(new Date().toISOString())} />
           </div>
         </section>
@@ -193,21 +193,31 @@ export function DefensePacketView({ claimId, claimNumber, status, packet }: Prop
               <IncidentTimelineChart
                 speedTimeline={speedTimeline}
                 postedSpeedLimitMph={postedSpeedLimitMph}
-                speedAtImpactMph={speedAtImpactMph}
+                speedAtImpactMph={speedAtImpactMph ?? 0}
                 safetyEvents={safetyEventsInWindow}
               />
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <Metric label="Speed at impact" value={`${speedAtImpactMph} mph`} danger={isOverLimit} />
+                <Metric
+                  label="Speed at impact"
+                  value={speedAtImpactMph != null ? `${speedAtImpactMph} mph` : "Not reported by TSP"}
+                  danger={isOverLimit}
+                />
                 <Metric
                   label="Max speed in window"
-                  value={`${maxSpeedInWindowMph.toFixed(1)} mph`}
-                  danger={postedSpeedLimitMph != null && maxSpeedInWindowMph > postedSpeedLimitMph}
+                  value={maxSpeedInWindowMph != null ? `${maxSpeedInWindowMph.toFixed(1)} mph` : "Not reported"}
+                  danger={postedSpeedLimitMph != null && maxSpeedInWindowMph != null && maxSpeedInWindowMph > postedSpeedLimitMph}
                 />
                 <Metric
                   label="Posted speed limit"
-                  value={postedSpeedLimitMph != null ? `${postedSpeedLimitMph} mph` : "Unavailable"}
+                  value={postedSpeedLimitMph != null ? `${postedSpeedLimitMph} mph` : "Not available via OSM"}
                 />
               </div>
+              {speedTimeline.length === 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  No speed telemetry from the TSP for this vehicle in the 72-minute pre-incident window. The Catena sandbox simulator
+                  does not emit speed values for all integrations.
+                </p>
+              )}
             </CardContent>
           </Card>
         </section>

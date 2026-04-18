@@ -48,16 +48,22 @@ export function buildIncidentSummary(packet: IncidentPacket): string {
     `Data completeness: **${dataCompleteness.status}**.`;
 
   // Speed
-  const speedRelative = postedSpeedLimitMph != null
-    ? speedAtImpactMph <= postedSpeedLimitMph
-      ? `**${postedSpeedLimitMph - speedAtImpactMph} mph below** the posted ${postedSpeedLimitMph} mph limit`
-      : `**${speedAtImpactMph - postedSpeedLimitMph} mph above** the posted ${postedSpeedLimitMph} mph limit`
-    : "(posted speed limit unavailable from OSM)";
-  const p2 = `**Speed Telemetry:** Vehicle speed at impact was **${speedAtImpactMph} mph** — ${speedRelative}. ` +
-    `Maximum recorded speed in the 72-minute pre-incident window: ${maxSpeedInWindowMph.toFixed(1)} mph. ` +
-    (roadContext?.source === "osm" && roadContext.postedSpeedLimitMph
-      ? `Speed limit sourced from OpenStreetMap (OSM way ${roadContext.osmWayId ?? "unknown"}).`
-      : "Speed limit not available from external sources.");
+  const p2 = speedAtImpactMph == null
+    ? "**Speed Telemetry:** Vehicle speed was not reported by the TSP for the 72-minute pre-incident window."
+    : (() => {
+        const speedRelative = postedSpeedLimitMph != null
+          ? speedAtImpactMph <= postedSpeedLimitMph
+            ? `**${postedSpeedLimitMph - speedAtImpactMph} mph below** the posted ${postedSpeedLimitMph} mph limit`
+            : `**${speedAtImpactMph - postedSpeedLimitMph} mph above** the posted ${postedSpeedLimitMph} mph limit`
+          : "(posted speed limit unavailable from OSM)";
+        return `**Speed Telemetry:** Vehicle speed at impact was **${speedAtImpactMph} mph** — ${speedRelative}. ` +
+          (maxSpeedInWindowMph != null
+            ? `Maximum recorded speed in the 72-minute pre-incident window: ${maxSpeedInWindowMph.toFixed(1)} mph. `
+            : "") +
+          (roadContext?.source === "osm" && roadContext.postedSpeedLimitMph
+            ? `Speed limit sourced from OpenStreetMap (OSM way ${roadContext.osmWayId ?? "unknown"}).`
+            : "Speed limit not available from external sources.");
+      })();
 
   // Safety events
   const p3 = safetyEventsInWindow.length === 0

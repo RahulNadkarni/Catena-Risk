@@ -79,18 +79,24 @@ export function DriverHosCard({ driver }: { driver: DriverHosStatus }) {
           <p className="text-xs text-muted-foreground">Break required in {driver.hoursUntilBreak.toFixed(1)}h</p>
         )}
       </div>
-      {(driver.tripOrigin || driver.lastDrivingPoint) && (
+      {(driver.currentCity || driver.lat != null || driver.currentRoad) && (
         <div className="border-t border-border/50 pt-2 space-y-1">
-          {driver.tripOrigin && (
-            <p className="text-xs text-muted-foreground truncate font-mono">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1.5 align-middle" />
-              From {driver.tripOrigin.lat.toFixed(3)}°, {driver.tripOrigin.lng.toFixed(3)}°
+          {driver.currentCity && (
+            <p className="text-xs text-muted-foreground truncate">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-400 mr-1.5 align-middle" />
+              {driver.currentCity}
             </p>
           )}
-          {driver.lastDrivingPoint && (
-            <p className="text-xs text-muted-foreground truncate font-mono">
+          {driver.lat != null && driver.lng != null && (
+            <p className="text-[10px] text-muted-foreground/70 truncate font-mono ml-3">
+              {driver.lat.toFixed(4)}°, {driver.lng.toFixed(4)}°
+            </p>
+          )}
+          {driver.currentRoad && (driver.currentRoad.roadName || driver.currentRoad.speedLimitMph != null) && (
+            <p className="text-xs text-muted-foreground truncate">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mr-1.5 align-middle" />
-              Driving {driver.lastDrivingPoint.lat.toFixed(3)}°, {driver.lastDrivingPoint.lng.toFixed(3)}°
+              {driver.currentRoad.roadName ?? driver.currentRoad.classification}
+              {driver.currentRoad.speedLimitMph != null && ` · ${driver.currentRoad.speedLimitMph} mph limit`}
             </p>
           )}
         </div>

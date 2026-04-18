@@ -89,9 +89,6 @@ export default function AboutPage() {
         <Link href="/tech" className={buttonVariants({ variant: "outline" })}>
           Architecture →
         </Link>
-        <Link href="/roi" className={buttonVariants({ variant: "outline" })}>
-          ROI calculator →
-        </Link>
       </div>
     </div>
   );
