@@ -1,3 +1,14 @@
+/**
+ * Hero fleets are HARDCODED fixture JSON bundles (pre-materialized dossiers for
+ * specific sandbox fleets) that anchor the peer cohort shown in the risk report.
+ *
+ * Why hardcoded: there is no Catena API that returns "here are comparable peer
+ * fleets for underwriting benchmarking" — peer cohort construction is a
+ * downstream modelling concern (size × commodity × geography × operation type).
+ * In production this would be replaced by an internal peer-cohort service
+ * (e.g. `GET /underwriting/peers?fleet_size=...&commodity=...`) that returns a
+ * live cohort, not committed fixture JSON.
+ */
 import fs from "node:fs/promises";
 import path from "node:path";
 

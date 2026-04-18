@@ -29,6 +29,11 @@
  *
  * These citations are **directional** for underwriting transparency; production models should be
  * calibrated on carrier experience and filed rating plans.
+ *
+ * **HARDCODED FOR DEMO.** No Catena API exposes carrier-specific rating weights — in production
+ * these would come from an internal rating service (e.g. a versioned `risk-config` table keyed by
+ * program / filing effective date, backed by an internal API like `GET /rating/programs/{id}/weights`)
+ * so changes can be audited against filed rating plans without redeploying code.
  */
 export const RISK_SCORE_WEIGHTS = {
   speeding: 0.25,

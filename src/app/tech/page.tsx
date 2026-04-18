@@ -87,7 +87,13 @@ export default function TechPage() {
         <CardContent>
           <div className="overflow-x-auto">
             <svg viewBox="0 0 800 200" className="w-full max-w-3xl" aria-label="Architecture diagram">
-              {/* Boxes */}
+              {/* "800+ ELDs" and "75+ integrations" are HARDCODED marketing-style
+                  stats for the demo diagram. There is no public Catena API that
+                  returns counts of connected ELDs or TSP integrations; the
+                  closest endpoints (`/v2/integrations/tsps`, `/v2/orgs/tsps`)
+                  list the TSPs authorized for this org, not industry totals.
+                  In production these labels would be pulled from an internal
+                  platform-metrics dashboard, not hardcoded. */}
               {[
                 { x: 10, y: 75, w: 120, h: 50, label: "800+ ELDs", sub: "75+ integrations", fill: "#f0fdf4", stroke: "#059669" },
                 { x: 175, y: 75, w: 130, h: 50, label: "Catena API", sub: `${ACTIVE_ENDPOINTS.length} endpoints used`, fill: "#eff6ff", stroke: "#2563eb" },

@@ -73,6 +73,11 @@ export function PortfolioKpiBand({ overview, scores }: Props) {
         value={overview.totalDrivers != null ? overview.totalDrivers.toLocaleString() : "—"}
         sub="Via Catena API"
       />
+      {/* Score bands (>=80 green, >=65 neutral, else amber) and the 20%
+          substandard-mix threshold are HARDCODED dashboard heuristics — same
+          story as src/lib/risk/scoring.ts tier cutoffs. No Catena API serves
+          portfolio health bands; production would read them from the same
+          internal rating-policy service. */}
       <Tile
         label="Avg risk score"
         value={avgScore != null ? `${avgScore}/100` : "—"}

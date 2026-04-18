@@ -9,6 +9,10 @@ interface Props {
 }
 
 export function DeteriorationAlerts({ rows }: Props) {
+  // -10 point drop is a HARDCODED demo threshold for "deterioration alert."
+  // No Catena API flags this — it's a loss-control policy decision. Production
+  // would read this from the internal risk-policy service (same source as
+  // tier cutoffs and scoring weights).
   const alerts = rows.filter((r) => r.delta != null && r.delta < -10);
 
   return (

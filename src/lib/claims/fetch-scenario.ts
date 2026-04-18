@@ -18,7 +18,6 @@ import type {
   DvirDefect,
   RouteWaypoint,
   SpeedSample,
-  ScenarioId,
   DataProvenanceEntry,
   DataCompleteness,
   EvidenceManifestEntry,
@@ -116,6 +115,57 @@ function buildSpeedTimeline(opts: {
     samples.push({
       offsetMinutes,
       speedMph: Math.round(speed * 10) / 10,
+      lat: Math.round(lat * 10000) / 10000,
+      lng: Math.round(lng * 10000) / 10000,
+      fromApi: false,
+    });
+  }
+  return samples;
+}
+
+/**
+ * Builds a plausible 72-min pre-incident speed profile for demo purposes only.
+ * HARDCODED FOR DEMO — used when the Catena sandbox returns no meaningful speed
+ * pings. In production this fallback would be removed entirely and the chart
+ * would render "No telemetry" — the real source is Catena
+ * /v2/telematics/vehicle-locations (speed field, normalized across TSPs).
+ *
+ * Profile: cruising at baseSpeed ± small jitter for the first ~60 min,
+ * then a brief pre-impact deceleration/recovery, converging to speedAtImpact.
+ */
+function buildDemoSpeedTimeline(opts: {
+  incidentLat: number;
+  incidentLng: number;
+  headingDeg: number;
+  baseSpeedMph: number;
+  speedAtImpactMph: number;
+}): SpeedSample[] {
+  const { incidentLat, incidentLng, headingDeg, baseSpeedMph, speedAtImpactMph } = opts;
+  const samples: SpeedSample[] = [];
+  const totalMinutes = 72;
+  const headingRad = (headingDeg * Math.PI) / 180;
+  // Small stable jitter pattern so consecutive demos look realistic but deterministic.
+  for (let i = totalMinutes; i >= 0; i--) {
+    const offsetMinutes = -i;
+    const jitter = Math.sin(i * 0.7) * 2 + Math.cos(i * 0.23) * 1.2;
+    let speed = baseSpeedMph + jitter;
+    // Brief slowdown 8-4 min before impact (traffic / approach)
+    if (i <= 8 && i >= 4) {
+      const dip = 6 * Math.sin(((8 - i) / 4) * Math.PI);
+      speed -= dip;
+    }
+    // Converge to impact speed in last 3 min
+    if (i <= 3) {
+      speed = speed + (speedAtImpactMph - speed) * ((3 - i) / 3);
+    }
+    // Synthesize plausible GPS trail backwards along heading
+    const milesBehind = (baseSpeedMph / 60) * i;
+    const degPerMile = 1 / 69;
+    const lat = incidentLat - Math.cos(headingRad) * milesBehind * degPerMile;
+    const lng = incidentLng - Math.sin(headingRad) * milesBehind * degPerMile;
+    samples.push({
+      offsetMinutes,
+      speedMph: Math.round(Math.max(0, speed) * 10) / 10,
       lat: Math.round(lat * 10000) / 10000,
       lng: Math.round(lng * 10000) / 10000,
       fromApi: false,
@@ -1057,17 +1107,35 @@ export async function buildRealSingleIncidentPacket(
   );
   const driverHosViolations90d = hosViolations.filter((v) => str(v, "driver_id") === driverId).length;
 
-  // ── Speed timeline — real API pings ONLY. No synthetic fill.
-  // If the sandbox doesn't report speeds for this vehicle, the timeline is just empty.
-  const speedTimeline: SpeedSample[] = realPings
-    .sort((a, b) => a.offsetMinutes - b.offsetMinutes)
-    .map((p) => ({
-      offsetMinutes: p.offsetMinutes,
-      speedMph: Math.round(p.speedMph * 10) / 10,
-      lat: p.lat,
-      lng: p.lng,
-      fromApi: true,
-    }));
+  // ── Speed timeline ────────────────────────────────────────────────────────
+  // Primary: real pings from Catena /v2/telematics/vehicle-locations (speed field).
+  // Demo fallback: when the sandbox emits no meaningful speeds for this vehicle
+  // (Catena sandbox simulator returns near-zero / null speed for most TSP fleets),
+  // synthesize a plausible 72-min highway profile so the Speed Telemetry chart
+  // renders something the claims workflow can be demoed against. Every synthetic
+  // sample is flagged fromApi=false and the provenance panel shows "synthetic".
+  //
+  // HARDCODED FOR DEMO PURPOSES. In production this fallback would be removed
+  // and the UI would simply render "No telemetry" — the real data source is
+  // /v2/telematics/vehicle-locations (and /vehicles/{id}/sensor-events for
+  // higher-frequency sub-minute samples when available).
+  const speedTimeline: SpeedSample[] = realPings.length > 0
+    ? realPings
+        .sort((a, b) => a.offsetMinutes - b.offsetMinutes)
+        .map((p) => ({
+          offsetMinutes: p.offsetMinutes,
+          speedMph: Math.round(p.speedMph * 10) / 10,
+          lat: p.lat,
+          lng: p.lng,
+          fromApi: true,
+        }))
+    : buildDemoSpeedTimeline({
+        incidentLat,
+        incidentLng,
+        headingDeg,
+        baseSpeedMph: baseSpeed ?? 58,
+        speedAtImpactMph: speedAtImpactRaw ?? 62,
+      });
 
   const speedAtImpactMph: number | null = speedTimeline.find((s) => s.offsetMinutes === 0)?.speedMph ?? speedAtImpactRaw;
   const maxSpeedInWindowMph: number | null = speedTimeline.length > 0

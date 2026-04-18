@@ -99,6 +99,10 @@ function localHourAndWeekday(iso: string, timeZone: string): { hour: number; wee
   return { hour, weekday: map[wd] ?? d.getUTCDay() };
 }
 
+// Night = 22:00–05:00 local. HARDCODED policy constant — no Catena API
+// defines "night driving." Actuarial definitions vary (22–06, 21–06, 23–05);
+// for a real rating model this would come from the internal rating-policy
+// service alongside the sub-score weights in src/lib/risk/weights.ts.
 function isNightHour(hour: number): boolean {
   return hour >= 22 || hour < 5;
 }

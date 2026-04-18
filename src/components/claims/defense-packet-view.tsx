@@ -218,6 +218,14 @@ export function DefensePacketView({ claimId, claimNumber, status, packet }: Prop
                   does not emit speed values for all integrations.
                 </p>
               )}
+              {speedTimeline.length > 0 && speedTimeline.every((s) => !s.fromApi) && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  <strong>Demo fallback:</strong> The Catena sandbox returned no meaningful speed pings for this vehicle in the 72-min window,
+                  so the chart above is a plausible hardcoded profile for demonstration purposes. In production this would be rendered directly
+                  from <code>/v2/telematics/vehicle-locations</code> (speed field) — and when no real data is available, the chart would
+                  simply render empty rather than fall back to a synthesized profile.
+                </p>
+              )}
             </CardContent>
           </Card>
         </section>

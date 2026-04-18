@@ -96,6 +96,11 @@ function maxDataFreshnessHours(dossier: FleetDossier | undefined): number | null
   return maxH;
 }
 
+// HARDCODED FOR DEMO — confidence thresholds (min-days/drivers/miles, max-freshness)
+// and tier cutoffs below are policy constants, not telemetry. No Catena API exposes
+// them. In production they would come from an internal rating-policy service
+// (e.g. `GET /rating/programs/{id}/policy` returning { confidence_thresholds, tier_cutoffs })
+// so changes are versioned against filed rating plans without a code deploy.
 function computeConfidence(
   dossier: FleetDossier | undefined,
   exposure: ExposureMetrics,
@@ -115,6 +120,7 @@ function computeConfidence(
 }
 
 function tierFromScore(composite: number): RiskScore["tier"] {
+  // Tier cutoffs — HARDCODED for demo, would be carrier filing config in production.
   if (composite >= 80) return "Preferred";
   if (composite >= 65) return "Standard";
   if (composite >= 50) return "Substandard";
@@ -132,6 +138,9 @@ function recommendedFromTier(score: RiskScore): RiskScore["recommendedAction"] {
     };
   }
   if (c >= 65) {
+    // Surcharge band (5–15%) and the flat 22% surcharge below are HARDCODED
+    // pricing primitives for demo. Production values would come from a filed
+    // rating plan served by an internal pricing API, not from code constants.
     const pct = clamp(5 + ((79 - c) / 14) * 10, 5, 15);
     return {
       decision: "quote_with_surcharge",

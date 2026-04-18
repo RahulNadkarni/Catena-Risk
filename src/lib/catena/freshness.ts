@@ -40,6 +40,10 @@ export async function getConnectionFreshnessSummary(
   const min = Math.round(ago / 60000);
   const label =
     min < 1 ? "Last synced less than 1 minute ago" : `Last synced ${min} minute${min === 1 ? "" : "s"} ago`;
+  // Freshness thresholds (<15min good, <24h warn) are HARDCODED display
+  // heuristics. No Catena API defines SLA bands — these are our dashboard
+  // policy. In production they would come from an internal config endpoint
+  // tied to the carrier's data-contract SLA.
   let level: FreshnessLevel = "stale";
   if (ago < 15 * 60 * 1000) level = "good";
   else if (ago < 24 * 60 * 60 * 1000) level = "warn";

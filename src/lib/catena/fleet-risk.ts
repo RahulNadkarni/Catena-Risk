@@ -94,7 +94,11 @@ export async function fetchFleetRiskSummaries(limit = 12): Promise<FleetRiskSumm
     const viol30d = violsByFleet.get(fleetId) ?? 0;
     const active = activeByFleet.get(fleetId) ?? 0;
 
-    // Risk indicator: events per vehicle per month
+    // Risk indicator: events per vehicle per month.
+    // Cutoffs (<1 low, 1–3 medium, ≥3 high) are HARDCODED demo heuristics.
+    // No Catena API exposes a "fleet risk tier" — live risk categorization is
+    // app-side policy and would, in production, come from an internal risk-
+    // policy service (same pattern as tier cutoffs in src/lib/risk/scoring.ts).
     const eventsPerVehicle = vehicles > 0 ? events30d / vehicles : null;
     let liveIndicator: FleetRiskSummary["liveIndicator"] = "unknown";
     if (eventsPerVehicle != null) {
@@ -149,6 +153,10 @@ export async function fetchTopRiskDrivers(limit = 10): Promise<TopDriverRisk[]> 
     }))
     .filter((d) => d.driverId && (d.safetyEvents30d > 0 || d.hosViolations30d > 0))
     .sort((a, b) => {
+      // HOS-violation 2× weight is HARDCODED heuristic for driver ranking.
+      // No Catena API returns ranked "top risk drivers"; this ordering is
+      // purely app-side. Production would source the weights from the same
+      // internal rating-policy service as src/lib/risk/weights.ts.
       const scoreA = a.safetyEvents30d + a.hosViolations30d * 2;
       const scoreB = b.safetyEvents30d + b.hosViolations30d * 2;
       return scoreB - scoreA;

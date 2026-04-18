@@ -20,6 +20,11 @@ function indicatorBadge(ind: FleetRiskSummary["liveIndicator"]) {
   return <Badge variant="outline" className="text-muted-foreground">No data</Badge>;
 }
 
+// Color bands (>=75 red, >=50 amber) are HARDCODED dashboard heuristics for
+// the landing page. Note this column is `events_per_vehicle × 25` (a live-risk
+// proxy), not the composite score — so thresholds differ from the tier cutoffs
+// in src/lib/risk/scoring.ts. In production both would come from the same
+// internal risk-policy service.
 function scoreLabel(score: number | null): { label: string; cls: string } {
   if (score == null) return { label: "—", cls: "text-muted-foreground" };
   if (score >= 75) return { label: score.toFixed(1), cls: "text-red-600 font-semibold" };

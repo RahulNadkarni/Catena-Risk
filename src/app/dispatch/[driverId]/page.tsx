@@ -102,6 +102,11 @@ function statusColor(status: string) {
   return "bg-gray-100 text-gray-600 border-gray-200";
 }
 
+// HARDCODED string-replace for demo — the canonical source is
+// `/v2/telematics/ref-hos-rulesets` (cached fixture at
+// src/lib/fixtures/reference/ref_hos_rulesets.json). Production would look up
+// `short_name` / `description` from that reference table instead of the
+// hand-rolled string massage below.
 function formatRuleset(code: string | null): string {
   if (!code) return "—";
   return code.replace(/_/g, " ").replace("US INT PROP", "US Interstate").replace("SLPVAR", "(sleeper split)");

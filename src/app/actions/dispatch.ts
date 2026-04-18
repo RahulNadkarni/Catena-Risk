@@ -158,6 +158,11 @@ function geoJsonLatLng(obj: unknown): { lat: number; lng: number } | null {
   return { lat, lng };
 }
 
+// HARDCODED for demo — the canonical source for these labels is Catena's
+// reference endpoint `/v2/telematics/ref-hos-event-codes` (see COVERAGE.md).
+// In production we would call it once at boot, cache the resulting code→label
+// map, and use that instead of this inline switch. Hardcoding avoids the extra
+// API round-trip on every dispatch render for a demo rehearsal.
 function dutyStatusLabel(code: string | null): string {
   switch (code?.toUpperCase()) {
     case "D":   return "Driving";

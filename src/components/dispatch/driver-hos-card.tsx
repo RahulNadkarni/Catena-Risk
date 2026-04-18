@@ -70,6 +70,12 @@ export function DriverHosCard({ driver }: { driver: DriverHosStatus }) {
         )}
       </div>
       <div className="space-y-1.5">
+        {/* HOS limits (11h / 70h / 14h) are US FMCSA 49 CFR §395 constants — not
+            API-sourced. Per-ruleset values (Canadian, oilfield, etc.) are
+            available via /v2/telematics/ref-hos-rulesets; for this demo we
+            hardcode the US interstate property-carrying defaults. Warn
+            thresholds (1.5h/2h/1h remaining) are internal dispatch policy —
+            HARDCODED here, would come from an internal dispatch-config API. */}
         <HoursBar label="Drive time" avail={driver.driveAvailH} limit={11} warn={1.5} />
         <HoursBar label="70-hr cycle" avail={driver.cycleAvailH} limit={70} warn={2} />
         {driver.shiftAvailH != null && (

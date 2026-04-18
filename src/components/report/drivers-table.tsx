@@ -31,6 +31,10 @@ export type DriverSummaryRow = {
   grade: string;
 };
 
+// Driver A–F grade is a HARDCODED demo formula (safety×2 + hos×3, tiered at
+// 0/3/8/15). No Catena API returns per-driver grades; production would route
+// through the same internal rating-policy service as the fleet sub-score
+// weights in src/lib/risk/weights.ts.
 function gradeFrom(safety: number, hos: number): string {
   const penalty = safety * 2 + hos * 3;
   if (penalty === 0) return "A";
