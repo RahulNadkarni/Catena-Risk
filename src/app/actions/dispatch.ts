@@ -87,6 +87,7 @@ export interface DriverDetail {
   allEventsForDriver: SafetyEventItem[];
   weather: { tempF: number | null; condition: string; windMph: number | null; visibilityMi: number | null } | null;
   roadContext: { roadName: string | null; classification: string | null; speedLimitMph: number | null } | null;
+  currentCity: string | null;   // reverse-geocoded from current GPS
   hosEvents: HosEventItem[];
   todaySnapshot: {
     drivingSeconds: number;
@@ -103,6 +104,27 @@ export interface DriverDetail {
     username: string | null;
     status: string | null;
   } | null;
+  vehicle: {
+    vin: string | null;
+    make: string | null;
+    model: string | null;
+    year: number | null;
+    licensePlate: string | null;
+    licenseRegion: string | null;
+  } | null;
+  dvirLogs: {
+    id: string;
+    inspectedAt: string;
+    type: string;
+    status: "satisfactory" | "unsatisfactory" | "unknown";
+    defectCount: number;
+  }[];
+  hosViolationsList: {
+    id: string;
+    code: string | null;
+    occurredAt: string;
+    durationSeconds: number | null;
+  }[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -334,25 +356,9 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
       };
     });
 
-  // Geocode trip origins for board cards (only a few vehicles will have trip points)
-  const tripPointsToGeocode: { driverId: string; type: "origin" | "driving"; lat: number; lng: number }[] = [];
-  for (const d of driverStatuses) {
-    if (d.tripOrigin) tripPointsToGeocode.push({ driverId: d.driverId, type: "origin", lat: d.tripOrigin.lat, lng: d.tripOrigin.lng });
-    if (d.lastDrivingPoint) tripPointsToGeocode.push({ driverId: d.driverId, type: "driving", lat: d.lastDrivingPoint.lat, lng: d.lastDrivingPoint.lng });
-  }
-  if (tripPointsToGeocode.length > 0) {
-    const geocoded = await Promise.all(
-      tripPointsToGeocode.map((p) => reverseGeocode(p.lat, p.lng).catch(() => null))
-    );
-    for (let i = 0; i < tripPointsToGeocode.length; i++) {
-      const { driverId, type } = tripPointsToGeocode[i]!;
-      const city = geocoded[i] ?? null;
-      const d = driverStatuses.find((s) => s.driverId === driverId);
-      if (!d) continue;
-      if (type === "origin" && d.tripOrigin) d.tripOrigin = { ...d.tripOrigin, cityName: city };
-      if (type === "driving" && d.lastDrivingPoint) d.lastDrivingPoint = { ...d.lastDrivingPoint, cityName: city };
-    }
-  }
+  // Geocoding is intentionally skipped on the dispatch board — it's 20+ Nominatim
+  // calls per load that add 5–10s of latency. The driver detail page geocodes
+  // the trip points when the user actually clicks in. Cards show raw coords.
 
   const statusCounts = { driving: 0, onDuty: 0, offDuty: 0 };
   for (const d of driverStatuses) {
@@ -398,7 +404,7 @@ export async function fetchDispatchSnapshot(): Promise<DispatchSnapshot> {
 export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail | null> {
   const client = createCatenaClientFromEnv();
 
-  const [liveLocRes, hosAvailRes, hosViolRes, safetyRes, hosEvtRes, hosSnapRes, driverSummRes] = await Promise.all([
+  const [liveLocRes, hosAvailRes, hosViolRes, safetyRes, hosEvtRes, hosSnapRes, driverSummRes, vehiclesRes, dvirRes] = await Promise.all([
     client.listVehicleLiveLocations({ size: 100 }),
     client.listHosAvailabilities({ size: 100 }),
     client.listHosViolations({ size: 200 }),
@@ -406,6 +412,8 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
     client.listHosEvents({ size: 200 }).catch(() => null),
     client.listHosDailySnapshots({ size: 50 }).catch(() => null),
     client.listDriverSummaries({ size: 100 }).catch(() => null),
+    client.listVehicles({ size: 200 }).catch(() => null),
+    client.listDvirLogs({ size: 100 }).catch(() => null),
   ]);
 
   const liveLocations = (liveLocRes?.items ?? []) as unknown[];
@@ -415,6 +423,8 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
   const hosEventsRaw = ((hosEvtRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
   const hosSnapshotsRaw = ((hosSnapRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
   const driverSummariesRaw = ((driverSummRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const vehiclesRaw = ((vehiclesRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
+  const dvirRaw = ((dvirRes as { items?: unknown[] } | null)?.items ?? []) as unknown[];
 
   // Find this vehicle's live location
   const liveLoc = liveLocations.find((loc) => str(loc, "vehicle_id") === vehicleId);
@@ -587,15 +597,75 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
     status: str(summaryRec, "status"),
   } : null;
 
-  // Weather + road context at current GPS position
+  // Vehicle record — full details (VIN, make, model, year, plate)
+  const vehicleRec = vehiclesRaw.find((v) => str(v, "id") === vehicleId);
+  const vehicleInfo = vehicleRec ? {
+    vin: str(vehicleRec, "vin"),
+    make: str(vehicleRec, "make"),
+    model: str(vehicleRec, "model"),
+    year: num(vehicleRec, "year"),
+    licensePlate: str(vehicleRec, "license_plate"),
+    licenseRegion: str(vehicleRec, "license_region") ?? str(vehicleRec, "license_plate_region"),
+  } : null;
+
+  // DVIR inspection history for this vehicle (last 60 days)
+  const sixtyDaysAgo = Date.now() - 60 * 24 * 3600_000;
+  const dvirLogs: DriverDetail["dvirLogs"] = dvirRaw
+    .filter((l) => str(l, "vehicle_id") === vehicleId)
+    .filter((l) => {
+      const at = str(l, "occurred_at");
+      return at ? new Date(at).getTime() >= sixtyDaysAgo : false;
+    })
+    .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""))
+    .slice(0, 20)
+    .map((l) => {
+      const defectCount = num(l, "defect_count") ?? 0;
+      const isCritical = (l as Record<string, unknown>).is_safety_critical === true;
+      const hasDefects = defectCount > 0 || isCritical;
+      return {
+        id: str(l, "id") ?? "",
+        inspectedAt: str(l, "occurred_at") ?? "",
+        type: (str(l, "log_type") ?? "inspection").replace(/_/g, " "),
+        status: hasDefects ? "unsatisfactory" as const : "satisfactory" as const,
+        defectCount,
+      };
+    });
+
+  // HOS violations history for this driver (last 30 days)
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 3600_000;
+  const hosViolationsList: DriverDetail["hosViolationsList"] = tspDriverId
+    ? hosViolations
+        .filter((v) => str(v, "driver_id") === tspDriverId)
+        .filter((v) => {
+          const at = str(v, "occurred_at");
+          return at ? new Date(at).getTime() >= thirtyDaysAgo : false;
+        })
+        .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""))
+        .slice(0, 15)
+        .map((v) => ({
+          id: str(v, "id") ?? "",
+          code: str(v, "violation_code") ?? str(v, "rule_code"),
+          occurredAt: str(v, "occurred_at") ?? "",
+          durationSeconds: num(v, "duration_seconds"),
+        }))
+    : [];
+
+  // Weather + road context + current-location city at current GPS position
   let weather: DriverDetail["weather"] = null;
   let roadContext: DriverDetail["roadContext"] = null;
+  let currentCity: string | null = null;
 
   if (lat != null && lng != null) {
     const now = new Date().toISOString();
-    const [wx, road] = await Promise.all([
-      fetchWeatherAtIncident(lat, lng, now).catch(() => null),
-      fetchRoadContext(lat, lng, null).catch(() => null),
+    // Hard 2.5s budget for external enrichment so page loads stay under 5s.
+    // If any source times out we just show "unavailable" — results cache on success.
+    const budgetMs = 2500;
+    const withBudget = <T>(p: Promise<T>): Promise<T | null> =>
+      Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), budgetMs))]);
+    const [wx, road, city] = await Promise.all([
+      withBudget(fetchWeatherAtIncident(lat, lng, now).catch(() => null)),
+      withBudget(fetchRoadContext(lat, lng, null).catch(() => null)),
+      withBudget(reverseGeocode(lat, lng).catch(() => null)),
     ]);
 
     if (wx) {
@@ -613,7 +683,20 @@ export async function fetchDriverDetail(vehicleId: string): Promise<DriverDetail
         speedLimitMph: road.postedSpeedLimitMph ?? null,
       };
     }
+    currentCity = city;
   }
 
-  return { driver, allEventsForDriver, weather, roadContext, hosEvents, todaySnapshot, driverSummary };
+  return {
+    driver,
+    allEventsForDriver,
+    weather,
+    roadContext,
+    currentCity,
+    hosEvents,
+    todaySnapshot,
+    driverSummary,
+    vehicle: vehicleInfo,
+    dvirLogs,
+    hosViolationsList,
+  };
 }

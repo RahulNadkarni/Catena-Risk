@@ -380,10 +380,12 @@ async function buildIncidentPacket(opts: {
     .sort((a, b) => (str(b, "occurred_at") ?? "").localeCompare(str(a, "occurred_at") ?? ""));
   const mostRecentLoc = vehicleLocations[0];
   const coords = geoPointSafe(mostRecentLoc ? (mostRecentLoc as Record<string, unknown>).location : null);
-  // Neutral geographic center fallback (Indianapolis) — no risky/clean hardcoded coordinates
-  const incidentLat = coords?.lat ?? 39.7684;
-  const incidentLng = coords?.lng ?? -86.1581;
-  const coordsFromApi = coords != null;
+  if (!coords) {
+    throw new Error("Cannot build incident packet: no GPS coordinates available from Catena vehicle-locations.");
+  }
+  const incidentLat = coords.lat;
+  const incidentLng = coords.lng;
+  const coordsFromApi = true;
 
   // Driver analytics summary (from /analytics/drivers)
   const driverSummary = driverSummaries.find(
@@ -834,8 +836,22 @@ export async function buildRealSingleIncidentPacket(
   }
   const driverHasLocation = new Set(locations.map((l) => str(l, "vehicle_id")).filter(Boolean));
 
-  // Sort drivers by event count; pick most or fewest depending on profile request
-  const sortedByEvents = [...users].sort((a, b) => {
+  // Drivers must have AT LEAST one safety event linked to a vehicle that has GPS pings,
+  // otherwise we can't build a geolocated incident packet. Filter first, then sort.
+  const driverVehicleMap = new Map<string, string>();
+  for (const e of safetyEvents) {
+    const did = str(e, "driver_id");
+    const vid = str(e, "vehicle_id");
+    if (did && vid && !driverVehicleMap.has(did)) driverVehicleMap.set(did, vid);
+  }
+  const eligibleUsers = users.filter((u) => {
+    const uid = str(u, "id");
+    if (!uid) return false;
+    const vid = driverVehicleMap.get(uid);
+    return vid != null && driverHasLocation.has(vid);
+  });
+  // Sort eligible drivers by event count; pick most or fewest depending on profile request
+  const sortedByEvents = [...(eligibleUsers.length > 0 ? eligibleUsers : users)].sort((a, b) => {
     const aId = str(a, "id") ?? "";
     const bId = str(b, "id") ?? "";
     return (eventCountByDriver.get(bId) ?? 0) - (eventCountByDriver.get(aId) ?? 0);
@@ -900,9 +916,15 @@ export async function buildRealSingleIncidentPacket(
   // Otherwise use the vehicle location ping closest to the incident time.
   const dispatchCoords = dispatchLiveLoc ? geoPointSafe((dispatchLiveLoc as Record<string, unknown>).location) : null;
   const coords = dispatchCoords ?? geoPointSafe(bestLocForIncident ? (bestLocForIncident as Record<string, unknown>).location : null);
-  const incidentLat = coords?.lat ?? 39.7684; // Indianapolis — neutral US geographic center fallback
-  const incidentLng = coords?.lng ?? -86.1581;
-  const coordsFromApi = coords != null;
+  if (!coords) {
+    throw new Error(
+      `Cannot build incident packet for ${claimNumber}: no GPS coordinates available from Catena vehicle-locations for this vehicle. ` +
+      `Try a different vehicle or driver with recent location pings.`,
+    );
+  }
+  const incidentLat = coords.lat;
+  const incidentLng = coords.lng;
+  const coordsFromApi = true;
 
   // ── Heading: from real location ping ─────────────────────────────────────
   const headingDeg = num(bestLocForIncident, "heading") ?? 0;

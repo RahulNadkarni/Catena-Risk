@@ -107,10 +107,10 @@ export function DefensePacketView({ claimId, claimNumber, status, packet }: Prop
       <div className="space-y-8 min-w-0">
 
         {/* 1. Incident header */}
-        <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <section className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">Claim</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wide">Incident Evidence Report · Claim</p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight font-mono">{claimNumber}</h1>
               <p className="text-muted-foreground mt-1 text-sm">{incidentDescription}</p>
             </div>
@@ -119,13 +119,68 @@ export function DefensePacketView({ claimId, claimNumber, status, packet }: Prop
               <Badge variant="outline" className="capitalize">{status.replace(/_/g, " ")}</Badge>
             </div>
           </div>
-          <Separator className="my-4" />
+
+          {dataCompleteness.status === "SYNTHETIC_FALLBACK" && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-900">
+              <strong>Demo data disclaimer:</strong> Some fields in this report are synthetic fallbacks where the Catena sandbox did not
+              return data (e.g., speed telemetry, specific addresses). Live API fields are marked in the Data provenance panel.
+            </div>
+          )}
+
+          {/* KPI band — at-a-glance factual metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Metric
+              label="Speed at impact"
+              value={`${speedAtImpactMph} mph`}
+              danger={isOverLimit}
+            />
+            <Metric
+              label="Posted limit"
+              value={postedSpeedLimitMph != null ? `${postedSpeedLimitMph} mph` : "Unavailable"}
+            />
+            <Metric
+              label="Events (30-min)"
+              value={`${safetyEventsInWindow.length}`}
+              danger={safetyEventsInWindow.length > 0}
+            />
+            <Metric
+              label="HOS compliance"
+              value={hosSnapshot.isCompliant ? "Compliant" : "Non-compliant"}
+              danger={!hosSnapshot.isCompliant}
+            />
+            <Metric
+              label="Weather"
+              value={
+                weatherContext?.temperatureF != null
+                  ? `${Math.round(weatherContext.temperatureF)}°F`
+                  : "NOAA unavailable"
+              }
+            />
+            <Metric
+              label="Road class"
+              value={roadContext?.roadClassification ?? "Unavailable"}
+            />
+            <Metric
+              label="DVIR 60d"
+              value={`${dvirRecords.length} insp · ${unresolvedCritical.length} open`}
+              danger={unresolvedCritical.length > 0}
+            />
+            <Metric
+              label="Events 30d"
+              value={driverSafetyEvents30d != null ? `${driverSafetyEvents30d}` : "—"}
+            />
+          </div>
+
+          <Separator />
+
           <div className="grid gap-1 sm:grid-cols-2">
             <Row k="Incident date/time" v={fmtDate(incidentAt)} />
             <Row k="Location" v={incidentLocation} />
+            <Row k="Coordinates" v={`${packet.incidentLat.toFixed(5)}°N, ${Math.abs(packet.incidentLng).toFixed(5)}°W`} />
             <Row k="Driver" v={driverName} />
             <Row k="Vehicle unit" v={vehicleUnit} />
             <Row k="VIN" v={vehicleVin} />
+            <Row k="Driver tenure" v={driverTenureMonths > 0 ? `${driverTenureMonths} months` : "Unavailable"} />
             <Row k="Report generated" v={fmtDate(new Date().toISOString())} />
           </div>
         </section>

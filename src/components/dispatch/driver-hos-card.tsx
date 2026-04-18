@@ -82,15 +82,15 @@ export function DriverHosCard({ driver }: { driver: DriverHosStatus }) {
       {(driver.tripOrigin || driver.lastDrivingPoint) && (
         <div className="border-t border-border/50 pt-2 space-y-1">
           {driver.tripOrigin && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground truncate font-mono">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1.5 align-middle" />
-              From {driver.tripOrigin.cityName ?? `${driver.tripOrigin.lat.toFixed(2)}°N`}
+              From {driver.tripOrigin.lat.toFixed(3)}°, {driver.tripOrigin.lng.toFixed(3)}°
             </p>
           )}
           {driver.lastDrivingPoint && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground truncate font-mono">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mr-1.5 align-middle" />
-              En route · {driver.lastDrivingPoint.cityName ?? `${driver.lastDrivingPoint.lat.toFixed(2)}°N`}
+              Driving {driver.lastDrivingPoint.lat.toFixed(3)}°, {driver.lastDrivingPoint.lng.toFixed(3)}°
             </p>
           )}
         </div>

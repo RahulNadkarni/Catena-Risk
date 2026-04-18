@@ -116,7 +116,7 @@ export default async function DriverDetailPage({
   const detail = await fetchDriverDetail(decodeURIComponent(driverId));
   if (!detail) notFound();
 
-  const { driver, allEventsForDriver, weather, roadContext, hosEvents, todaySnapshot, driverSummary } = detail;
+  const { driver, allEventsForDriver, weather, roadContext, currentCity, hosEvents, todaySnapshot, driverSummary, vehicle, dvirLogs, hosViolationsList } = detail;
 
   // Generate demo claim number: DISP-{first6ofDriverId}-{date}
   const today = new Date();
@@ -174,10 +174,10 @@ export default async function DriverDetailPage({
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
-                  Current location
+                  Current location {currentCity && <span className="text-sm font-normal text-muted-foreground">· {currentCity}</span>}
                 </CardTitle>
                 {hasLocation && (
-                  <CardDescription>
+                  <CardDescription className="font-mono">
                     {driver.lat!.toFixed(5)}°N, {Math.abs(driver.lng!).toFixed(5)}°W
                     {driver.lastLocationAt && ` · updated ${relTime(driver.lastLocationAt)}`}
                   </CardDescription>
@@ -214,13 +214,11 @@ export default async function DriverDetailPage({
                         <div>
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trip origin</p>
                           <p className="text-sm font-semibold">
-                            {driver.tripOrigin.cityName ?? `${driver.tripOrigin.lat.toFixed(4)}°N, ${Math.abs(driver.tripOrigin.lng).toFixed(4)}°W`}
+                            {driver.tripOrigin.cityName ?? "Reverse geocode unavailable"}
                           </p>
-                          {driver.tripOrigin.cityName && (
-                            <p className="text-xs text-muted-foreground font-mono">
-                              {driver.tripOrigin.lat.toFixed(4)}°N, {Math.abs(driver.tripOrigin.lng).toFixed(4)}°W
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {driver.tripOrigin.lat.toFixed(4)}°N, {Math.abs(driver.tripOrigin.lng).toFixed(4)}°W
+                          </p>
                           <p className="text-xs text-muted-foreground">{fmtTime(driver.tripOrigin.at)}</p>
                         </div>
                       </div>
@@ -231,13 +229,11 @@ export default async function DriverDetailPage({
                         <div>
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last driving position</p>
                           <p className="text-sm font-semibold">
-                            {driver.lastDrivingPoint.cityName ?? `${driver.lastDrivingPoint.lat.toFixed(4)}°N, ${Math.abs(driver.lastDrivingPoint.lng).toFixed(4)}°W`}
+                            {driver.lastDrivingPoint.cityName ?? "Reverse geocode unavailable"}
                           </p>
-                          {driver.lastDrivingPoint.cityName && (
-                            <p className="text-xs text-muted-foreground font-mono">
-                              {driver.lastDrivingPoint.lat.toFixed(4)}°N, {Math.abs(driver.lastDrivingPoint.lng).toFixed(4)}°W
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {driver.lastDrivingPoint.lat.toFixed(4)}°N, {Math.abs(driver.lastDrivingPoint.lng).toFixed(4)}°W
+                          </p>
                           <p className="text-xs text-muted-foreground">{fmtTime(driver.lastDrivingPoint.at)}</p>
                         </div>
                       </div>
@@ -247,9 +243,9 @@ export default async function DriverDetailPage({
                         <div className="mt-1.5 h-2.5 w-2.5 rounded-full bg-orange-400 shrink-0 ring-2 ring-orange-100" />
                         <div>
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Live GPS ping</p>
-                          <p className="text-sm font-semibold">Woodstock, IL</p>
+                          <p className="text-sm font-semibold">{currentCity ?? "Reverse geocode unavailable"}</p>
                           <p className="text-xs text-muted-foreground font-mono">
-                            {driver.lat!.toFixed(4)}°N, {Math.abs(driver.lng!).toFixed(4)}°W · sandbox simulator
+                            {driver.lat!.toFixed(4)}°N, {Math.abs(driver.lng!).toFixed(4)}°W
                           </p>
                           {driver.lastLocationAt && <p className="text-xs text-muted-foreground">{relTime(driver.lastLocationAt)}</p>}
                         </div>
@@ -260,21 +256,46 @@ export default async function DriverDetailPage({
               </Card>
             )}
 
-            {/* Vehicle telemetry */}
-            {(driver.vehicleName || driver.odometerMi != null || driver.engineHours != null || driver.fuelPct != null) && (
+            {/* Vehicle card — full details */}
+            {(driver.vehicleName || vehicle || driver.odometerMi != null || driver.engineHours != null || driver.fuelPct != null) && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Truck className="h-4 w-4 text-muted-foreground" />
-                    Vehicle telemetry
+                    Vehicle
                   </CardTitle>
-                  {driver.vehicleName && <CardDescription>{driver.vehicleName}</CardDescription>}
+                  {(driver.vehicleName || (vehicle?.make && vehicle.model)) && (
+                    <CardDescription>
+                      {vehicle?.year && `${vehicle.year} `}{vehicle?.make && vehicle?.model ? `${vehicle.make} ${vehicle.model}` : driver.vehicleName}
+                    </CardDescription>
+                  )}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                  {/* Vehicle record identifiers */}
+                  {vehicle && (vehicle.vin || vehicle.licensePlate) && (
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm pb-3 border-b border-border/50">
+                      {vehicle.vin && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">VIN</p>
+                          <p className="font-medium font-mono text-xs">{vehicle.vin}</p>
+                        </div>
+                      )}
+                      {vehicle.licensePlate && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">License plate</p>
+                          <p className="font-medium font-mono">
+                            {vehicle.licensePlate}
+                            {vehicle.licenseRegion && <span className="text-muted-foreground ml-1">· {vehicle.licenseRegion}</span>}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Live telemetry */}
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     {driver.speedMph != null && (
                       <div>
-                        <p className="text-xs text-muted-foreground">Speed</p>
+                        <p className="text-xs text-muted-foreground">Speed (live)</p>
                         <p className="font-medium">{driver.speedMph.toFixed(1)} mph</p>
                       </div>
                     )}
@@ -297,7 +318,14 @@ export default async function DriverDetailPage({
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-3">via Catena live-locations · Woodstock, IL (sandbox simulator)</p>
+                  <p className="text-xs text-muted-foreground">
+                    via <code>listVehicles</code> + <code>live-locations</code>
+                    {driver.speedMph != null && driver.speedMph < 2 && (
+                      <span className="block mt-1 text-amber-700">
+                        Demo disclaimer: this sandbox simulator holds vehicles stationary (speed ≈ 0) in Woodstock, IL.
+                      </span>
+                    )}
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -385,6 +413,79 @@ export default async function DriverDetailPage({
                         </div>
                       </div>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* HOS violations — driver-specific */}
+            {hosViolationsList.length > 0 && (
+              <Card className="border-red-200 bg-red-50/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 text-red-900">
+                    <AlertTriangle className="h-4 w-4" />
+                    HOS violations (30d)
+                  </CardTitle>
+                  <CardDescription>
+                    {hosViolationsList.length} violation{hosViolationsList.length !== 1 ? "s" : ""} · via <code className="text-xs">listHosViolations</code>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {hosViolationsList.map((v) => (
+                      <div key={v.id} className="flex items-center justify-between py-1.5 border-b border-red-200/40 last:border-0 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge variant="outline" className="text-xs shrink-0 bg-red-100 text-red-700 border-red-200">
+                            {v.code ?? "VIOLATION"}
+                          </Badge>
+                          {v.durationSeconds != null && (
+                            <span className="text-xs text-muted-foreground">{v.durationSeconds}s</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums">{fmtTime(v.occurredAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* DVIR inspection history */}
+            {dvirLogs.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    DVIR inspection history
+                  </CardTitle>
+                  <CardDescription>
+                    {dvirLogs.length} inspection{dvirLogs.length !== 1 ? "s" : ""} in 60 days ·
+                    {" "}{dvirLogs.filter((l) => l.status === "satisfactory").length} satisfactory,
+                    {" "}<span className={dvirLogs.filter((l) => l.status === "unsatisfactory").length > 0 ? "text-red-600 font-semibold" : ""}>{dvirLogs.filter((l) => l.status === "unsatisfactory").length} unsatisfactory</span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {dvirLogs.slice(0, 10).map((l) => (
+                      <div key={l.id} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0 text-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-xs text-muted-foreground font-mono tabular-nums w-24">{fmtTime(l.inspectedAt)}</span>
+                          <span className="text-xs capitalize">{l.type}</span>
+                          {l.defectCount > 0 && (
+                            <span className="text-xs text-red-700">{l.defectCount} defect{l.defectCount !== 1 ? "s" : ""}</span>
+                          )}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs shrink-0 ${l.status === "satisfactory" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}
+                        >
+                          {l.status === "satisfactory" ? "Pass" : "Fail"}
+                        </Badge>
+                      </div>
+                    ))}
+                    {dvirLogs.length > 10 && (
+                      <p className="text-xs text-muted-foreground pt-1">+{dvirLogs.length - 10} more inspections</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -584,14 +685,18 @@ export default async function DriverDetailPage({
             {/* Data sources */}
             <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">Data sources — this page</p>
-              <p>Live location → <code>GET /v2/telematics/analytics/vehicles/live-locations</code></p>
-              <p>HOS status → <code>GET /v2/telematics/hos-availabilities</code></p>
-              <p>HOS timeline → <code>GET /v2/telematics/hos-events</code></p>
-              <p>Daily log → <code>GET /v2/telematics/hos-daily-snapshots</code></p>
-              <p>30-day profile → <code>GET /v2/telematics/analytics/drivers</code></p>
-              <p>Safety events → <code>GET /v2/telematics/driver-safety-events</code></p>
-              <p>Road context → OpenStreetMap Overpass API</p>
-              <p>Weather → NOAA Weather API</p>
+              <p>Live location → <code>/v2/telematics/analytics/vehicles/live-locations</code></p>
+              <p>Vehicle record → <code>/v2/telematics/vehicles</code></p>
+              <p>HOS availability → <code>/v2/telematics/hos-availabilities</code></p>
+              <p>HOS events (timeline) → <code>/v2/telematics/hos-events</code></p>
+              <p>HOS daily log → <code>/v2/telematics/hos-daily-snapshots</code></p>
+              <p>HOS violations → <code>/v2/telematics/hos-violations</code></p>
+              <p>DVIR inspections → <code>/v2/telematics/dvir-logs</code></p>
+              <p>Safety events → <code>/v2/telematics/driver-safety-events</code></p>
+              <p>30-day profile → <code>/v2/telematics/analytics/drivers</code></p>
+              <p>Road context → OpenStreetMap Overpass</p>
+              <p>Reverse geocoding → OpenStreetMap Nominatim</p>
+              <p>Weather → NOAA api.weather.gov</p>
             </div>
           </div>
         </div>

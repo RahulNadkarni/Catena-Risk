@@ -15,7 +15,13 @@
 import type { WeatherContext } from "@/lib/claims/types";
 
 const NOAA_BASE = "https://api.weather.gov";
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 3_500; // per-request timeout; NOAA makes 3 sequential requests
+
+// In-memory cache so repeated page loads don't re-hit NOAA (which is slow).
+// Key = "lat,lng,hourBucket" — refresh hourly.
+const WEATHER_CACHE = new Map<string, { value: unknown; at: number }>();
+const WEATHER_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const WEATHER_CACHE_MAX = 200;
 
 type NoaaPoint = {
   properties: {
@@ -109,6 +115,14 @@ export async function fetchWeatherAtIncident(
   incidentAt: string,
 ): Promise<WeatherContext> {
   const fetchedAt = new Date().toISOString();
+  // Check cache (rounded to 2 decimals ~= 1km accuracy; hour bucket)
+  const hourBucket = Math.floor(new Date(incidentAt).getTime() / 3600_000);
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${hourBucket}`;
+  const cached = WEATHER_CACHE.get(cacheKey);
+  if (cached && (Date.now() - cached.at) < WEATHER_CACHE_TTL_MS) {
+    return cached.value as WeatherContext;
+  }
+
   const unavailable = (note?: string): WeatherContext => ({
     source: "unavailable",
     fetchedAt,
@@ -191,7 +205,7 @@ export async function fetchWeatherAtIncident(
     if (windSpeedMph != null) conditionParts.push(`wind ${windSpeedMph} mph`);
     if (precipitationType && precipitationType !== "none") conditionParts.push(precipitationType);
 
-    return {
+    const result: WeatherContext = {
       source: "noaa",
       fetchedAt,
       stationId,
@@ -206,8 +220,18 @@ export async function fetchWeatherAtIncident(
       conditionDescription: conditionParts.join(", ") || "Conditions recorded",
       rawObservationUrl: obsUrl,
     };
+    // Cache successful result (evict oldest if over cap)
+    if (WEATHER_CACHE.size >= WEATHER_CACHE_MAX) {
+      const firstKey = WEATHER_CACHE.keys().next().value;
+      if (firstKey) WEATHER_CACHE.delete(firstKey);
+    }
+    WEATHER_CACHE.set(cacheKey, { value: result, at: Date.now() });
+    return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(`NOAA fetch failed: ${msg}`);
+    const result = unavailable(`NOAA fetch failed: ${msg}`);
+    // Cache failures too (short TTL prevents retry storms)
+    WEATHER_CACHE.set(cacheKey, { value: result, at: Date.now() });
+    return result;
   }
 }

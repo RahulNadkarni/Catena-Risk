@@ -10,8 +10,12 @@
 import type { RoadContext } from "@/lib/claims/types";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 5_000;
 const SEARCH_RADIUS_M = 100;
+
+// In-memory cache for road context — reuses rounded coords key like geocoding.
+const ROAD_CACHE = new Map<string, RoadContext>();
+const ROAD_CACHE_MAX = 300;
 
 type OverpassElement = {
   type: "way" | "node" | "relation";
@@ -56,22 +60,41 @@ function parseSpeedLimit(raw: string | undefined): number | null {
   return null;
 }
 
+// In-memory LRU-ish cache for reverse geocoding — key = rounded coordinates.
+// Survives for the lifetime of the Node process (dev server or prod instance).
+const GEOCODE_CACHE = new Map<string, string | null>();
+const GEOCODE_CACHE_MAX = 500;
+
 /** Reverse geocode a lat/lng to "City, State" using OSM Nominatim (free, no key). */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  // Round to ~100m precision so nearby points share a cache entry.
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  if (GEOCODE_CACHE.has(key)) return GEOCODE_CACHE.get(key)!;
+
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(6)}&lon=${lng.toFixed(6)}&format=json&addressdetails=1`;
     const res = await fetch(url, {
       headers: { "User-Agent": "Catena-Risk/1.0 (insurance-telematics-demo)" },
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(3_000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      GEOCODE_CACHE.set(key, null);
+      return null;
+    }
     const data = await res.json() as { address?: Record<string, string | undefined> };
     const a = data.address ?? {};
     const city = a.city ?? a.town ?? a.village ?? a.county;
     const state = a.state;
-    if (!city && !state) return null;
-    return [city, state].filter(Boolean).join(", ");
+    const result = (!city && !state) ? null : [city, state].filter(Boolean).join(", ");
+    // Evict oldest if over cap
+    if (GEOCODE_CACHE.size >= GEOCODE_CACHE_MAX) {
+      const firstKey = GEOCODE_CACHE.keys().next().value;
+      if (firstKey) GEOCODE_CACHE.delete(firstKey);
+    }
+    GEOCODE_CACHE.set(key, result);
+    return result;
   } catch {
+    GEOCODE_CACHE.set(key, null);
     return null;
   }
 }
@@ -82,6 +105,10 @@ export async function fetchRoadContext(
   inferredAddress?: string | null,
 ): Promise<RoadContext> {
   const fetchedAt = new Date().toISOString();
+
+  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const cached = ROAD_CACHE.get(cacheKey);
+  if (cached) return cached;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const unavailable = (note?: string): RoadContext => ({
     source: "unavailable",
@@ -115,7 +142,11 @@ out tags;
     const data = (await res.json()) as OverpassResponse;
     const ways = data.elements.filter((e) => e.type === "way" && e.tags?.highway);
 
-    if (!ways.length) return unavailable("No driveable way found within 100m");
+    if (!ways.length) {
+      const result = unavailable("No driveable way found within 100m");
+      ROAD_CACHE.set(cacheKey, result);
+      return result;
+    }
 
     // Prefer ways with maxspeed tag; fall back to first way
     const withSpeed = ways.filter((w) => w.tags?.maxspeed);
@@ -128,7 +159,7 @@ out tags;
     const roadClassification = OSM_HIGHWAY_CLASSIFICATION[highwayType] ?? "unknown";
     const roadName = tags["name"] ?? tags["ref"] ?? null;
 
-    return {
+    const result: RoadContext = {
       source: "osm",
       fetchedAt,
       postedSpeedLimitMph,
@@ -137,8 +168,16 @@ out tags;
       inferredAddress: inferredAddress ?? null,
       osmWayId: String(best.id),
     };
+    if (ROAD_CACHE.size >= ROAD_CACHE_MAX) {
+      const firstKey = ROAD_CACHE.keys().next().value;
+      if (firstKey) ROAD_CACHE.delete(firstKey);
+    }
+    ROAD_CACHE.set(cacheKey, result);
+    return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(`OSM fetch failed: ${msg}`);
+    const result = unavailable(`OSM fetch failed: ${msg}`);
+    ROAD_CACHE.set(cacheKey, result);
+    return result;
   }
 }
